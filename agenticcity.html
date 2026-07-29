@@ -208,7 +208,7 @@ function buildCup(){
 }
 
 /* ---------- desk + chair + robot factory ---------- */
-function buildDesk(){
+function buildDesk(mirrorCup){
   var g = new THREE.Group();
   var top = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.95), matDesk);
   top.position.y = 0.75; top.castShadow = true; top.receiveShadow = true;
@@ -247,7 +247,7 @@ function buildDesk(){
   g.add(mouse);
   /* coffee cup */
   var cup = buildCup();
-  cup.position.set(-0.72, 0.78, 0.3);
+  cup.position.set(mirrorCup ? 0.72 : -0.72, 0.78, 0.3);
   g.add(cup);
   return { group:g, redrawScreen:function(t, seed){
     var ctx = screenTex.ctx, w = screenTex.canvas.width, h = screenTex.canvas.height;
@@ -380,7 +380,7 @@ positions.forEach(function(p, i){
   var platformZ = p[1] - 0.2;
   var PH = buildPlatform(p[0], platformZ);
 
-  var deskObj = buildDesk();
+  var deskObj = buildDesk(p[0] > 0);
   deskObj.group.position.set(p[0], PH, p[1]);
   deskObj.group.rotation.y = Math.PI; /* mirrors monitor/keyboard so the robot can sit facing us */
   room.add(deskObj.group);
