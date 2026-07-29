@@ -43,8 +43,8 @@ scene.background = new THREE.Color(0x05070a);
 scene.fog = new THREE.Fog(0x05070a, 14, 34);
 
 var camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 100);
-var CAM_BASE_POS = [0, 3.35, 8.7];
-var CAM_BASE_LOOK = [0, 1.05, -0.3];
+var CAM_BASE_POS = [0, 3.15, 7.9];
+var CAM_BASE_LOOK = [0, 1.2, -0.5];
 camera.position.set(CAM_BASE_POS[0], CAM_BASE_POS[1], CAM_BASE_POS[2]);
 camera.lookAt(CAM_BASE_LOOK[0], CAM_BASE_LOOK[1], CAM_BASE_LOOK[2]);
 
@@ -205,7 +205,7 @@ function buildDesk(){
   var bezel = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.44,0.03), new THREE.MeshStandardMaterial({color:0x101115, roughness:0.4, metalness:0.3}));
   screenGroup.add(bezel);
   var screenTex = makeCanvasTexture(function(){}, 256,160);
-  var screenMat = new THREE.MeshStandardMaterial({ map:screenTex.texture, emissiveMap:screenTex.texture, emissive:0xffffff, emissiveIntensity:1.0, roughness:0.3 });
+  var screenMat = new THREE.MeshStandardMaterial({ map:screenTex.texture, emissiveMap:screenTex.texture, emissive:0xffffff, emissiveIntensity:1.0, roughness:0.3, side:THREE.DoubleSide });
   var screen = new THREE.Mesh(new THREE.PlaneGeometry(0.66,0.38), screenMat);
   screen.position.z = 0.018;
   screenGroup.add(screen);
@@ -332,16 +332,17 @@ var desks = [];
 positions.forEach(function(p, i){
   var deskObj = buildDesk();
   deskObj.group.position.set(p[0], 0, p[1]);
+  deskObj.group.rotation.y = Math.PI; /* mirrors monitor/keyboard so the robot can sit facing us */
   room.add(deskObj.group);
   desks.push(deskObj);
 
   var chair = buildChair();
-  chair.position.set(p[0], 0, p[1] + 0.62);
+  chair.position.set(p[0], 0, p[1] - 0.62);
   room.add(chair);
 
   var robotObj = buildRobot(accents[i], i*1.9 + i);
-  robotObj.group.position.set(p[0], 0, p[1] + 0.5);
-  robotObj.group.rotation.y = Math.PI;
+  robotObj.group.position.set(p[0], 0, p[1] - 0.5);
+  /* no extra rotation: the robot's built-in forward direction now faces the camera */
   room.add(robotObj.group);
   robots.push(robotObj);
 
@@ -380,7 +381,7 @@ buildPlant(6.8, -1.5);
    and a very small idle sway keeps the shot from feeling like a static photo. */
 function updateFov(){
   var aspect = window.innerWidth/window.innerHeight;
-  var dist = CAM_BASE_POS[2] - 1.9;      /* distance to the nearest desk row */
+  var dist = CAM_BASE_POS[2] - 2.2;      /* distance to the nearest desk row (monitors now face us) */
   var halfX = 5.1;                        /* half-width to cover (desks + robots + margin) */
   var hHalf = Math.atan(halfX/dist);
   var vHalf = Math.atan(Math.tan(hHalf)/aspect);
