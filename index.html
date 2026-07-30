@@ -33,7 +33,7 @@ var renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, powerPre
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -149,13 +149,15 @@ room.add(winGlow);
 
 /* ceiling light strips */
 var ceilLightMat = new THREE.MeshStandardMaterial({ color:0xdfeeff, emissive:0xbfd8ff, emissiveIntensity:1.6, roughness:0.4 });
-[-4.6,-1.6,1.6,4.6].forEach(function(x){
+[-4.6,-1.6,1.6,4.6].forEach(function(x, i){
   var strip = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.06,0.35), ceilLightMat);
   strip.position.set(x, ROOM_H-0.05, 0.5);
   room.add(strip);
-  var pl = new THREE.PointLight(0xcfe4ff, 0.9, 8, 2);
-  pl.position.set(x, ROOM_H-0.5, 0.5);
-  room.add(pl);
+  if (i % 2 === 1){ /* only half the strips get a real light; the rest just glow via emissive material */
+    var pl = new THREE.PointLight(0xcfe4ff, 1.3, 10, 2);
+    pl.position.set(x, ROOM_H-0.5, 0.5);
+    room.add(pl);
+  }
 });
 
 /* ambient fill */
@@ -163,7 +165,7 @@ scene.add(new THREE.HemisphereLight(0x9fb8d8, 0x14161c, 0.55));
 var sun = new THREE.DirectionalLight(0xdfe9ff, 0.6);
 sun.position.set(-6, 8, 4);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048,2048);
+sun.shadow.mapSize.set(1024,1024);
 sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
 sun.shadow.camera.top = 10; sun.shadow.camera.bottom = -10;
 sun.shadow.camera.far = 24; sun.shadow.bias = -0.0015;
@@ -236,9 +238,6 @@ function buildDesk(mirrorCup){
   screen.position.z = 0.018;
   screenGroup.add(screen);
   g.add(screenGroup);
-  var glow = new THREE.PointLight(0x6fd3ff, 0.55, 1.6, 2);
-  glow.position.set(0,1.14,0.05);
-  g.add(glow);
   /* keyboard + mouse */
   var kb = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.02,0.18), matKeyboard);
   kb.position.set(0,0.79,0.22); kb.castShadow = true;
@@ -367,9 +366,6 @@ function buildPlatform(x, z){
     rim.position.set(r.x, rimY, r.z);
     g.add(rim);
   });
-  var glow = new THREE.PointLight(0xffffff, 0.5, 3, 2);
-  glow.position.set(0, 0.15, 0);
-  g.add(glow);
   g.position.set(x, 0, z);
   room.add(g);
   return 0;
@@ -431,8 +427,8 @@ positions.forEach(function(p, i){
   var lamp = new THREE.SpotLight(0xffb268, 6, 4.5, Math.PI/5, 0.5, 1.6);
   lamp.position.set(p[0] + (i%2===0?-0.6:0.6), 2.4, p[1]-0.2);
   lamp.target = deskObj.group;
-  lamp.castShadow = (i < 2);
-  if (lamp.castShadow){ lamp.shadow.mapSize.set(1024,1024); lamp.shadow.bias = -0.002; }
+  lamp.castShadow = (i === 0);
+  if (lamp.castShadow){ lamp.shadow.mapSize.set(512,512); lamp.shadow.bias = -0.002; }
   room.add(lamp);
   room.add(lamp.target);
 });
