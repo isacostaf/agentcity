@@ -137,11 +137,11 @@ room.add(rightWall);
 
 /* window on back wall */
 var winMat = new THREE.MeshBasicMaterial({ map:skyTex.texture });
-var windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 2.6), winMat);
-windowMesh.position.set(0, 3.05, -ROOM_D_BACK + 0.03);
+var windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(12.96, 3.51), winMat);
+windowMesh.position.set(0, 2.85, -ROOM_D_BACK + 0.03);
 room.add(windowMesh);
-var winFrame = new THREE.Mesh(new THREE.PlaneGeometry(9.9, 2.9), new THREE.MeshStandardMaterial({color:0x0c0e12, roughness:0.6}));
-winFrame.position.set(0, 3.05, -ROOM_D_BACK + 0.01);
+var winFrame = new THREE.Mesh(new THREE.PlaneGeometry(13.365, 3.915), new THREE.MeshStandardMaterial({color:0x0c0e12, roughness:0.6}));
+winFrame.position.set(0, 2.85, -ROOM_D_BACK + 0.01);
 room.add(winFrame);
 var winGlow = new THREE.PointLight(0x5f86b3, 2.2, 9, 2);
 winGlow.position.set(0, 3, -ROOM_D_BACK + 1.6);
@@ -187,10 +187,10 @@ scene.add(sun);
 
 /* ---------- coffee cup (saucer + body + handle) ---------- */
 function buildCup(){
-  var g = new THREE.Group();
   var saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.1,0.014,20), matCup);
   saucer.castShadow = true; saucer.receiveShadow = true;
-  g.add(saucer);
+
+  var g = new THREE.Group(); // agora só a xícara em si
   var body = new THREE.Mesh(new THREE.CylinderGeometry(0.072,0.058,0.09,20), matCup);
   body.position.y = 0.014/2 + 0.09/2;
   body.castShadow = true;
@@ -204,7 +204,8 @@ function buildCup(){
   handle.position.set(0.09, 0.014/2 + 0.09/2, 0);
   handle.castShadow = true;
   g.add(handle);
-  return g;
+
+  return { saucer: saucer, cup: g };
 }
 
 /* ---------- desk + chair + robot factory ---------- */
@@ -246,10 +247,13 @@ function buildDesk(mirrorCup){
   mouse.position.set(0.34,0.79,0.24);
   g.add(mouse);
   /* coffee cup */
-  var cup = buildCup();
-  cup.position.set(mirrorCup ? 0.72 : -0.72, 0.78, 0.3);
-  g.add(cup);
-  return { group:g, redrawScreen:function(t, seed){
+    var cupParts = buildCup();
+    var cupX = mirrorCup ? 0.72 : -0.72;
+    cupParts.saucer.position.set(cupX, 0.78, 0.3);   // fica preso na mesa
+    g.add(cupParts.saucer);
+    cupParts.cup.position.set(cupX, 0.78, 0.3);       // essa é a que anima
+    g.add(cupParts.cup);
+  return { group:g, cup:cupParts.cup, redrawScreen:function(t, seed){
     var ctx = screenTex.ctx, w = screenTex.canvas.width, h = screenTex.canvas.height;
     ctx.fillStyle = '#081018'; ctx.fillRect(0,0,w,h);
     var lines = 11;
@@ -333,6 +337,7 @@ function buildRobot(accent, phase){
     elbow.add(hand);
     shoulder.add(elbow);
     hips.add(shoulder);
+    shoulder.elbowGroup = elbow;
     return shoulder;
   }
   var armL = buildArm(-1);
@@ -394,6 +399,33 @@ positions.forEach(function(p, i){
   robotObj.group.position.set(p[0], PH, p[1] - 0.5);
   /* no extra rotation: the robot's built-in forward direction now faces the camera */
   room.add(robotObj.group);
+
+  /* coffee-drinking behaviour: pick the arm on the same side as this desk's cup */
+  var drinkSide = (p[0] > 0) ? -1 : 1; /* matches mirrorCup logic in buildDesk */
+  robotObj.drinkArm = (drinkSide === -1) ? robotObj.armL : robotObj.armR;
+  robotObj.drinkSide = drinkSide;
+  robotObj.cup = deskObj.cup;
+  robotObj.deskGroup = deskObj.group;
+  robotObj.cupBasePos = deskObj.cup.position.clone();
+  robotObj.cupBaseRot = deskObj.cup.rotation.clone();
+  robotObj.drinkElbow = robotObj.drinkArm.elbowGroup;
+  deskObj.group.updateMatrixWorld(true); /* localToWorld needs an up-to-date matrix, unlike getWorldPosition */
+  robotObj.cupWorldRest = deskObj.group.localToWorld(deskObj.cup.position.clone());
+  robotObj.drinking = false;
+  robotObj.drinkStart = 0;
+  robotObj.drinkT = 0;
+  robotObj.nextDrink = 6 + i*7 + Math.random()*6; /* staggered first sip */
+
+  /* how far the robot needs to lean in so its arm can actually reach the cup */
+  (function(){
+    var shoulderRest = robotObj.drinkArm.getWorldPosition(new THREE.Vector3());
+    var toCup = robotObj.cupWorldRest.clone().sub(shoulderRest);
+    var horiz = new THREE.Vector3(toCup.x, 0, toCup.z);
+    var horizLen = horiz.length();
+    var leanDist = Math.min(Math.max(0, toCup.length() - 0.42), horizLen*0.6, 0.3);
+    robotObj.reachLean = horizLen > 0.01 ? horiz.normalize().multiplyScalar(leanDist) : new THREE.Vector3();
+  })();
+
   robots.push(robotObj);
 
   var lamp = new THREE.SpotLight(0xffb268, 6, 4.5, Math.PI/5, 0.5, 1.6);
@@ -481,6 +513,36 @@ function updateCamera(t){
 /* ---------- animation loop ---------- */
 var clock = new THREE.Clock();
 var frame = 0;
+var __drinkHeadWorld = new THREE.Vector3();
+var __drinkLocalTarget = new THREE.Vector3();
+var __drinkHandTarget = new THREE.Vector3();
+var __drinkShoulderWorld = new THREE.Vector3();
+var __drinkToTarget = new THREE.Vector3();
+var __drinkV2 = new THREE.Vector3();
+var __drinkHandLocal = new THREE.Vector3();
+var __drinkRestQuat = new THREE.Quaternion();
+var __drinkAimQuat = new THREE.Quaternion();
+var __xAxis = new THREE.Vector3(1,0,0);
+
+/* simple analytic 2-bone arm IK so the hand actually arrives at the cup, then at the mouth */
+var IK_L1 = 0.24;
+var IK_V2_0 = new THREE.Vector3(0, -0.17, 0.23);
+var IK_L2 = IK_V2_0.length();
+var IK_V1_DIR = new THREE.Vector3(0, -1, 0);
+var IK_BASE_ANGLE = Math.acos( IK_V1_DIR.dot(IK_V2_0.clone().normalize()) );
+var IK_MAX = IK_L1 + IK_L2, IK_MIN = Math.abs(IK_L1 - IK_L2);
+
+/* coffee-sip timeline: reach for the cup -> lift it with the cup -> hold -> lower together -> release */
+var DRINK_DURATION = 3.1;
+var DRINK_T1 = 0.177, DRINK_T2 = 0.387, DRINK_T3 = 0.613, DRINK_T4 = 0.823;
+function smoothstep01(x){ x = x<0?0:(x>1?1:x); return x*x*(3-2*x); }
+function drinkPhaseAmounts(dp){
+  if (dp < DRINK_T1) return { reach: smoothstep01(dp/DRINK_T1), lift: 0 };
+  if (dp < DRINK_T2) return { reach: 1, lift: smoothstep01((dp-DRINK_T1)/(DRINK_T2-DRINK_T1)) };
+  if (dp < DRINK_T3) return { reach: 1, lift: 1 };
+  if (dp < DRINK_T4) return { reach: 1, lift: 1 - smoothstep01((dp-DRINK_T3)/(DRINK_T4-DRINK_T3)) };
+  return { reach: 1 - smoothstep01((dp-DRINK_T4)/(1-DRINK_T4)), lift: 0 };
+}
 function animate(){
   requestAnimationFrame(animate);
   var t = clock.getElapsedTime();
@@ -488,15 +550,78 @@ function animate(){
 
   robots.forEach(function(r){
     var ph = r.phase;
+
+    /* occasional, gentle, staggered coffee break: arm reaches the cup first, then lifts it, holds, lowers, releases */
+    if (!r.drinking && t >= r.nextDrink){ r.drinking = true; r.drinkStart = t; }
+    var reachAmt = 0, liftAmt = 0;
+    if (r.drinking){
+      var dp = (t - r.drinkStart) / DRINK_DURATION;
+      if (dp >= 1){
+        r.drinking = false;
+        r.nextDrink = t + 16 + Math.random()*18; /* spaced out, different per robot */
+      } else {
+        var amt = drinkPhaseAmounts(dp);
+        reachAmt = amt.reach; liftAmt = amt.lift;
+      }
+    }
+    r.drinkT = liftAmt;
+
     r.hips.position.y = 0.85 + Math.sin(t*1.1+ph)*0.012;
+    r.hips.position.x = r.reachLean.x * reachAmt;
+    r.hips.position.z = r.reachLean.z * reachAmt;
+
     var typeCycle = Math.sin(t*3.4+ph)*0.16 + Math.sin(t*7.1+ph*1.3)*0.05;
     r.armL.rotation.x = -0.55 + typeCycle;
     r.armR.rotation.x = -0.55 - typeCycle*0.8;
+    r.armL.rotation.z = 0;
+    r.armR.rotation.z = 0;
+    r.armL.elbowGroup.rotation.x = 0;
+    r.armR.elbowGroup.rotation.x = 0;
     var yaw = Math.sin(t*0.16+ph)*0.28 + Math.sin(t*0.05+ph*2)*0.12;
     var pitch = -0.08 + Math.sin(t*0.9+ph)*0.02;
     r.headPivot.rotation.y = yaw;
     r.headPivot.rotation.x = pitch;
     r.chestLight.material.emissiveIntensity = 0.85 + Math.sin(t*2.2+ph)*0.4;
+
+    if (reachAmt > 0.001){
+      r.headPivot.rotation.x += 0.16 * liftAmt;
+      r.headPivot.rotation.y *= (1 - 0.6*liftAmt);
+
+      /* target the hand travels to: resting on the cup, then blending up toward the mouth */
+      r.headPivot.getWorldPosition(__drinkHeadWorld);
+      __drinkHeadWorld.y -= 0.05;
+      __drinkHeadWorld.z += 0.09;
+      __drinkHeadWorld.x += r.drinkSide * 0.04;
+      __drinkHandTarget.copy(r.cupWorldRest).lerp(__drinkHeadWorld, liftAmt);
+
+      /* 2-bone IK: solve elbow bend for distance, then aim the shoulder so the hand lands exactly on target */
+      r.drinkArm.getWorldPosition(__drinkShoulderWorld);
+      __drinkToTarget.copy(__drinkHandTarget).sub(__drinkShoulderWorld);
+      var D = THREE.MathUtils.clamp(__drinkToTarget.length(), IK_MIN, IK_MAX);
+      __drinkToTarget.normalize();
+
+      var cosAngle = THREE.MathUtils.clamp((D*D - IK_L1*IK_L1 - IK_L2*IK_L2) / (2*IK_L1*IK_L2), -1, 1);
+      var neededAngle = Math.acos(cosAngle);
+      var delta = IK_BASE_ANGLE - neededAngle;
+      r.drinkElbow.rotation.x = delta * reachAmt;
+
+      __drinkV2.copy(IK_V2_0).applyAxisAngle(__xAxis, delta);
+      __drinkHandLocal.copy(IK_V1_DIR).multiplyScalar(IK_L1).add(__drinkV2).normalize();
+
+      __drinkRestQuat.copy(r.drinkArm.quaternion);
+      __drinkAimQuat.setFromUnitVectors(__drinkHandLocal, __drinkToTarget);
+      r.drinkArm.quaternion.copy(__drinkRestQuat).slerp(__drinkAimQuat, reachAmt);
+
+      /* the cup rides exactly where the hand is heading */
+      r.deskGroup.worldToLocal(__drinkLocalTarget.copy(__drinkHandTarget));
+      r.cup.position.lerpVectors(r.cupBasePos, __drinkLocalTarget, liftAmt);
+      r.cup.rotation.z = r.cupBaseRot.z - r.drinkSide * 0.6 * liftAmt;
+      r.cup.rotation.x = r.cupBaseRot.x - 0.45 * liftAmt;
+    } else {
+      r.cup.position.copy(r.cupBasePos);
+      r.cup.rotation.z = r.cupBaseRot.z;
+      r.cup.rotation.x = r.cupBaseRot.x;
+    }
   });
 
   if (frame % 20 === 0){
