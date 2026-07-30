@@ -382,7 +382,10 @@ function buildRobot(accent, phase){
     /* BREAK CORNER COFFEE*/
   function buildBreakCorner(x,z,rotY){
   var g = new THREE.Group();
-  var cab = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.8,0.55), new THREE.MeshStandardMaterial({color:0x35291d, roughness:0.5}));
+  var cab = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2,0.8,0.55),
+    new THREE.MeshStandardMaterial({color:0x0a0c11, roughness:0.5})
+  );
   cab.position.y = 0.4; cab.castShadow = true; cab.receiveShadow = true;
   g.add(cab);
   [-0.32,0.32].forEach(function(dx){
@@ -395,15 +398,24 @@ function buildRobot(accent, phase){
   seam.position.set(0,0.4,0);
   g.add(seam);
 
-  var top = new THREE.Mesh(new THREE.BoxGeometry(1.38,0.05,0.62), new THREE.MeshStandardMaterial({color:0xe8e4da, roughness:0.25}));
+  var top = new THREE.Mesh(
+    new THREE.BoxGeometry(3.28,0.05,0.62),
+    new THREE.MeshStandardMaterial({color:0x161b24, roughness:0.25})
+  );
   top.position.y = 0.825; top.castShadow = true; top.receiveShadow = true;
   g.add(top);
 
-  var splash = new THREE.Mesh(new THREE.BoxGeometry(1.38,0.35,0.03), new THREE.MeshStandardMaterial({color:0xd8d2c4, roughness:0.4}));
+  var splash = new THREE.Mesh(
+    new THREE.BoxGeometry(3.28,0.35,0.03),
+    new THREE.MeshStandardMaterial({color:0xd8d2c4, roughness:0.4})
+  );
   splash.position.set(0,1.02,-0.29);
   g.add(splash);
 
-  var upper = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.5,0.32), new THREE.MeshStandardMaterial({color:0x35291d, roughness:0.5}));
+  var upper = new THREE.Mesh(
+    new THREE.BoxGeometry(3.0,0.5,0.32),
+    new THREE.MeshStandardMaterial({color:0x0a0c11, roughness:0.5})
+  );
   upper.position.set(0,1.9,-0.14); upper.castShadow = true;
   g.add(upper);
   [-0.28,0.28].forEach(function(dx){
@@ -412,10 +424,19 @@ function buildRobot(accent, phase){
     g.add(h2);
   });
 
-  var rail = new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.9,8), matJoint);
+  var rail = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.008,0.008,2.8,8),
+    matJoint
+  );
   rail.rotation.z = Math.PI/2; rail.position.set(0,1.6,-0.1);
   g.add(rail);
-  [[-0.35,0xd85a5a],[-0.15,0x5aa0d8],[0.15,0xd8b85a],[0.35,0x7ec97e]].forEach(function(m){
+  [
+  [-1.1,0xd85a5a],
+  [-0.55,0x5aa0d8],
+  [0,0xd8b85a],
+  [0.55,0x7ec97e],
+  [1.1,0xd85a5a]
+  ].forEach(function(m){
     var hook = new THREE.Mesh(new THREE.TorusGeometry(0.02,0.005,6,10,Math.PI), matJoint);
     hook.position.set(m[0],1.6,-0.1);
     g.add(hook);
@@ -449,7 +470,7 @@ function buildRobot(accent, phase){
   var beanJar = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.14,12), new THREE.MeshStandardMaterial({color:0x5a3a24, roughness:0.4, transparent:true, opacity:0.85}));
   beanJar.position.set(0.02,1.145,-0.12);
   g.add(beanJar);
-  [0.18,0.26,0.34,0.42].forEach(function(cx){
+  [-1.1,-0.5,0.2,0.9,1.3].forEach(function(cx){
     var cup2 = new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.022,0.055,10), new THREE.MeshStandardMaterial({color:0xf4f0e8, roughness:0.5}));
     cup2.position.set(cx,0.8525,0.15); cup2.castShadow = true;
     g.add(cup2);
@@ -479,17 +500,23 @@ function buildRobot(accent, phase){
   var cord = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,1.1,6), matJoint);
   cord.position.set(0.15,2.7,0.25);
   g.add(cord);
-  var shade = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.14,16,1,true), new THREE.MeshStandardMaterial({color:0x201a14, roughness:0.4, side:THREE.DoubleSide}));
-  shade.position.set(0.15,2.15,0.25); shade.rotation.x = Math.PI;
-  g.add(shade);
 
-  var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.04,10,8), new THREE.MeshStandardMaterial({color:0x443322, emissive:0x332211, emissiveIntensity:0.25}));
-  bulb.position.set(0.15,2.1,0.25);
-  g.add(bulb);
+  // luminaria
+  // var shade = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.14,16,1,true), new THREE.MeshStandardMaterial({color:0x201a14, roughness:0.4, side:THREE.DoubleSide}));
+  // shade.position.set(0.15,2.15,0.25); shade.rotation.x = Math.PI;
+  // g.add(shade);
+
+  // lampada
+  // var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.04,10,8), new THREE.MeshStandardMaterial({color:0x443322, emissive:0x332211, emissiveIntensity:0.25}));
+  // bulb.position.set(0.15,2.1,0.25);
+  // g.add(bulb);
 
   var pendantLight = new THREE.PointLight(0xffcf8a, 0.3, 3.2, 2);
   pendantLight.position.set(0.15,2.1,0.25);
   g.add(pendantLight);
+  var pendantLight2 = new THREE.PointLight(0xffcf8a,0.25,3,2);
+  pendantLight2.position.set(-1.5,2.1,0.25);
+  g.add(pendantLight2);
   function stool(sx,sz){
     var sg = new THREE.Group();
     var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.05,16), matChair);
@@ -504,8 +531,10 @@ function buildRobot(accent, phase){
     sg.position.set(sx,0,sz);
     g.add(sg);
   }
-  stool(-0.25,0.65);
-  stool(0.35,0.65);
+  stool(-1.3,0.65);
+  stool(-0.45,0.65);
+  stool(0.45,0.65);
+  stool(1.3,0.65);
   var rug = new THREE.Mesh(new THREE.CircleGeometry(0.9,28), new THREE.MeshStandardMaterial({color:0x3a2f22, roughness:0.9}));
   rug.rotation.x = -Math.PI/2; rug.position.set(0,0.006,0.5);
   g.add(rug);
