@@ -379,6 +379,17 @@ function buildRobot(accent, phase){
     hips.add(leg);
   });
 
+
+  /* "zzz" icon for the 'sleepingmode' mode — child of the top-level (unrotated) group
+     so its world position can be placed directly above the head regardless of pose */
+  var zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map:zzzTex.texture, transparent:true, depthWrite:false, opacity:0 }));
+  zzz.scale.set(0.3,0.3,1);
+  zzz.visible = false;
+  g.add(zzz);
+
+  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz };
+}
+
     /* BREAK CORNER COFFEE*/
   function buildBreakCorner(x,z,rotY){
   var g = new THREE.Group();
@@ -407,7 +418,7 @@ function buildRobot(accent, phase){
 
   var splash = new THREE.Mesh(
     new THREE.BoxGeometry(3.28,0.35,0.03),
-    new THREE.MeshStandardMaterial({color:0xd8d2c4, roughness:0.4})
+    new THREE.MeshStandardMaterial({color:0x161b24, roughness:0.4})
   );
   splash.position.set(0,1.02,-0.29);
   g.add(splash);
@@ -511,12 +522,14 @@ function buildRobot(accent, phase){
   // bulb.position.set(0.15,2.1,0.25);
   // g.add(bulb);
 
-  var pendantLight = new THREE.PointLight(0xffcf8a, 0.3, 3.2, 2);
-  pendantLight.position.set(0.15,2.1,0.25);
+  // luz visivel
+  var pendantLight = new THREE.PointLight(0xffcf8a, 0.2, 3.2, 2);
+  pendantLight.position.set(0.15,1.3,0.25);
   g.add(pendantLight);
-  var pendantLight2 = new THREE.PointLight(0xffcf8a,0.25,3,2);
-  pendantLight2.position.set(-1.5,2.1,0.25);
+  var pendantLight2 = new THREE.PointLight(0xffcf8a,0.2,3,2);
+  pendantLight2.position.set(-1.5,1.3,0.25);
   g.add(pendantLight2);
+
   function stool(sx,sz){
     var sg = new THREE.Group();
     var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.05,16), matChair);
@@ -541,18 +554,74 @@ function buildRobot(accent, phase){
   g.position.set(x,0,z); g.rotation.y = rotY||0;
   room.add(g);
   return machLedMat;
-}
-var coffeeLed = buildBreakCorner(7.0, -3.3, -Math.PI/2);
+} var coffeeLed = buildBreakCorner(7.0, -3.3, -Math.PI/2);
 
-  /* "zzz" icon for the 'sleepingmode' mode — child of the top-level (unrotated) group
-     so its world position can be placed directly above the head regardless of pose */
-  var zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map:zzzTex.texture, transparent:true, depthWrite:false, opacity:0 }));
-  zzz.scale.set(0.3,0.3,1);
-  zzz.visible = false;
-  g.add(zzz);
-
-  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz };
+/* ------------------
+--- WATER STATION ---
+------------------ */
+function buildWaterStation(x,z){
+  var g = new THREE.Group();
+  var tray = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.04,16), new THREE.MeshStandardMaterial({color:0x15171b, roughness:0.4, metalness:0.5}));
+  tray.position.y = 0.02; tray.receiveShadow = true;
+  g.add(tray);
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.19,1.05,16), new THREE.MeshStandardMaterial({color:0xeef1f4, roughness:0.25, metalness:0.15}));
+  body.position.y = 0.55; body.castShadow = true;
+  g.add(body);
+  var panel = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.02), new THREE.MeshStandardMaterial({color:0x1c1f24, roughness:0.4}));
+  panel.position.set(0,0.55,0.175);
+  g.add(panel);
+  var hotBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.015,10), new THREE.MeshStandardMaterial({color:0xd8483f, emissive:0xd8483f, emissiveIntensity:0.6}));
+  hotBtn.rotation.x = Math.PI/2; hotBtn.position.set(0,0.68,0.19);
+  g.add(hotBtn);
+  var coldBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.015,10), new THREE.MeshStandardMaterial({color:0x3f8fd8, emissive:0x3f8fd8, emissiveIntensity:0.6}));
+  coldBtn.rotation.x = Math.PI/2; coldBtn.position.set(0,0.6,0.19);
+  g.add(coldBtn);
+  var dispTex = makeCanvasTexture(function(ctx,w,h){
+    ctx.fillStyle = '#05141c'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#5fe0ff'; ctx.font = 'bold 46px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('5°C', w/2, h/2+16);
+  },128,64);
+  var dispMat = new THREE.MeshStandardMaterial({ map:dispTex.texture, emissiveMap:dispTex.texture, emissive:0xffffff, emissiveIntensity:0.9, side:THREE.DoubleSide });
+  var disp = new THREE.Mesh(new THREE.PlaneGeometry(0.09,0.045), dispMat);
+  disp.position.set(0,0.76,0.191);
+  g.add(disp);
+  var bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.145,0.165,0.5,16), new THREE.MeshStandardMaterial({color:0x8fd0e8, roughness:0.1, metalness:0.05, transparent:true, opacity:0.7}));
+  bottle.position.y = 1.32; bottle.castShadow = true;
+  g.add(bottle);
+  var waterLine = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,0.28,16), new THREE.MeshStandardMaterial({color:0x4fb8e0, transparent:true, opacity:0.55}));
+  waterLine.position.y = 1.2;
+  g.add(waterLine);
+  var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.07,12), matJoint);
+  cap.position.y = 1.6;
+  g.add(cap);
+  [0,0.09].forEach(function(dy){
+    var spigot = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.09,8), matJoint);
+    spigot.rotation.z = Math.PI/2;
+    spigot.position.set(0.2, 0.82-dy, 0);
+    g.add(spigot);
+  });
+  var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.5,14,1,true), new THREE.MeshStandardMaterial({color:0xcfe6f2, roughness:0.15, transparent:true, opacity:0.5, side:THREE.DoubleSide}));
+  tube.position.set(-0.28,0.8,0);
+  g.add(tube);
+  for (var cI=0; cI<5; cI++){
+    var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.042,0.034,0.07,12), new THREE.MeshStandardMaterial({color:0xf4f2ec, roughness:0.5}));
+    cup.position.set(-0.28, 0.58+cI*0.045, 0);
+    g.add(cup);
+  }
+  var cupTray = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.02,12), matJoint);
+  cupTray.position.set(-0.28,0.52,0);
+  g.add(cupTray);
+  var mat2 = new THREE.Mesh(new THREE.CircleGeometry(0.55,24), new THREE.MeshStandardMaterial({color:0x0a0c11, roughness:0.9}));
+  mat2.rotation.x = -Math.PI/2; mat2.position.y = 0.008;
+  g.add(mat2);
+  g.position.set(x,0,z);
+  room.add(g);
+  var stationLight = new THREE.SpotLight(0xbfe8ff, 0.1, 3.5, Math.PI/6, 0.5, 1.5);
+  stationLight.position.set(x, 2.3, z+0.3);
+  stationLight.target.position.set(x,1,z);
+  room.add(stationLight); room.add(stationLight.target);
 }
+buildWaterStation(6.8, -0.9);
 
 /* ---------- station floor outline (rectangular LED strip, floor stays as-is) ---------- */
 function buildPlatform(x, z){
