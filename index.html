@@ -92,6 +92,16 @@ var skyTex = makeCanvasTexture(function(ctx,w,h){
   }
 }, 512, 320);
 
+/* "zzz" sleep icon, used by the 'dormindo' robot mode */
+var zzzTex = makeCanvasTexture(function(ctx,w,h){
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(222,236,255,0.95)';
+  ctx.save(); ctx.translate(w*0.24,h*0.8); ctx.rotate(-0.2); ctx.font = 'bold 30px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
+  ctx.save(); ctx.translate(w*0.53,h*0.52); ctx.rotate(-0.2); ctx.font = 'bold 44px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
+  ctx.save(); ctx.translate(w*0.8,h*0.22); ctx.rotate(-0.2); ctx.font = 'bold 58px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
+}, 160, 160);
+
 /* ---------- materials ---------- */
 var matWall = new THREE.MeshStandardMaterial({ color:0x252a34, roughness:0.85, metalness:0.05 });
 var matWallDark = new THREE.MeshStandardMaterial({ color:0x1b2028, roughness:0.9, metalness:0.05 });
@@ -108,6 +118,7 @@ var matPlantPot = new THREE.MeshStandardMaterial({ color:0x3d3a34, roughness:0.7
 var matLeaf = new THREE.MeshStandardMaterial({ color:0x3f7d4a, roughness:0.6, metalness:0.0 });
 var matCup = new THREE.MeshStandardMaterial({ color:0xf5f1e8, roughness:0.3, metalness:0.05 });
 var matCoffee = new THREE.MeshStandardMaterial({ color:0x3b2417, roughness:0.4, metalness:0.0 });
+var matSpill = new THREE.MeshStandardMaterial({ color:0x2a1810, roughness:0.2, metalness:0.05, transparent:true, opacity:0.85 });
 var matPlatformRim = new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xffffff, emissiveIntensity:1.8, roughness:0.4 });
 
 /* ---------- room ---------- */
@@ -252,7 +263,26 @@ function buildDesk(mirrorCup){
     g.add(cupParts.saucer);
     cupParts.cup.position.set(cupX, 0.78, 0.3);       // essa é a que anima
     g.add(cupParts.cup);
-  return { group:g, cup:cupParts.cup, redrawScreen:function(t, seed){
+
+  /* coffee spill decor for the 'error' mode — hidden until then.
+     Drips off the side of the desk (same side as the cup) rather than the robot-facing
+     edge, so the floor puddle lands in open space instead of under the robot/chair. */
+  var edgeSign = mirrorCup ? 1 : -1;
+  var edgeX = edgeSign * 1.0;
+  var deskStain = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), matSpill);
+  deskStain.rotation.x = -Math.PI/2;
+  deskStain.position.set(cupX + edgeSign*0.12, 0.781, 0.32);
+  deskStain.visible = false;
+  g.add(deskStain);
+
+  var deskDrip = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.05), matSpill);
+  deskDrip.position.set(edgeX, 0.74, 0.32);
+  deskDrip.rotation.y = Math.PI/2;
+  deskDrip.rotation.x = -1.15 * edgeSign; /* angled down over the desk's side edge */
+  deskDrip.visible = false;
+  g.add(deskDrip);
+
+  return { group:g, cup:cupParts.cup, deskStain:deskStain, deskDrip:deskDrip, redrawScreen:function(t, seed){
     var ctx = screenTex.ctx, w = screenTex.canvas.width, h = screenTex.canvas.height;
     ctx.fillStyle = '#081018'; ctx.fillRect(0,0,w,h);
     var lines = 11;
@@ -349,37 +379,62 @@ function buildRobot(accent, phase){
     hips.add(leg);
   });
 
-  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips };
+  /* "zzz" icon for the 'dormindo' mode — child of the top-level (unrotated) group
+     so its world position can be placed directly above the head regardless of pose */
+  var zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map:zzzTex.texture, transparent:true, depthWrite:false, opacity:0 }));
+  zzz.scale.set(0.3,0.3,1);
+  zzz.visible = false;
+  g.add(zzz);
+
+  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz };
 }
 
 /* ---------- station floor outline (rectangular LED strip, floor stays as-is) ---------- */
 function buildPlatform(x, z){
   var g = new THREE.Group();
   var PW = 2.8, PD = 2.3, rimT = 0.05, rimY = 0.012;
+  /* own material per station (not the shared default) so one station's LED can turn red without affecting the others */
+  var rimMat = matPlatformRim.clone();
   [
     { w:PW, d:rimT, x:0, z: PD/2 },
     { w:PW, d:rimT, x:0, z:-PD/2 },
     { w:rimT, d:PD, x: PW/2, z:0 },
     { w:rimT, d:PD, x:-PW/2, z:0 }
   ].forEach(function(r){
-    var rim = new THREE.Mesh(new THREE.BoxGeometry(r.w, 0.01, r.d), matPlatformRim);
+    var rim = new THREE.Mesh(new THREE.BoxGeometry(r.w, 0.01, r.d), rimMat);
     rim.position.set(r.x, rimY, r.z);
     g.add(rim);
   });
   g.position.set(x, 0, z);
   room.add(g);
-  return 0;
+  return { PH:0, material:rimMat };
 }
 
 /* ---------- assemble desks ---------- */
 var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081, 0xc77dff, 0xff9f4a];
 var positions = [ [-3.6,-2.0], [3.6,-2.0], [-3.6,1.9], [3.6,1.9], [0,-2.0], [0,1.9] ];
+
+/* ---------- robot mode assignment ----------
+   Set each robot's mode here — order matches the desks in `positions` above
+   (robo1 = first desk, robo2 = second desk, ...).
+   Available modes: 'trabalhando' (typing + coffee break), 'parado' (idle, sitting still).
+   To add a new mode: write a function next to modeTrabalhando/modeParado below
+   (search for "robot behavior modes") and list it in ROBOT_MODE_HANDLERS. */
+var robo1 = 'parado';
+var robo2 = 'trabalhando';
+var robo3 = 'dormindo';
+var robo4 = 'error';
+var robo5 = 'trabalhando';
+var robo6 = 'trabalhando';
+var ROBOT_MODES = [robo1, robo2, robo3, robo4, robo5, robo6];
+
 var robots = [];
 var desks = [];
 
 positions.forEach(function(p, i){
   var platformZ = p[1] - 0.2;
-  var PH = buildPlatform(p[0], platformZ);
+  var platformObj = buildPlatform(p[0], platformZ);
+  var PH = platformObj.PH;
 
   var deskObj = buildDesk(p[0] > 0);
   deskObj.group.position.set(p[0], PH, p[1]);
@@ -393,6 +448,8 @@ positions.forEach(function(p, i){
 
   var robotObj = buildRobot(accents[i], i*1.9 + i);
   robotObj.group.position.set(p[0], PH, p[1] - 0.5);
+  robotObj.ledMat = platformObj.material;
+  robotObj.mode = ROBOT_MODES[i] || 'trabalhando';
   /* no extra rotation: the robot's built-in forward direction now faces the camera */
   room.add(robotObj.group);
 
@@ -401,12 +458,25 @@ positions.forEach(function(p, i){
   robotObj.drinkArm = (drinkSide === -1) ? robotObj.armL : robotObj.armR;
   robotObj.drinkSide = drinkSide;
   robotObj.cup = deskObj.cup;
+  robotObj.deskStain = deskObj.deskStain;
+  robotObj.deskDrip = deskObj.deskDrip;
   robotObj.deskGroup = deskObj.group;
   robotObj.cupBasePos = deskObj.cup.position.clone();
   robotObj.cupBaseRot = deskObj.cup.rotation.clone();
   robotObj.drinkElbow = robotObj.drinkArm.elbowGroup;
   deskObj.group.updateMatrixWorld(true); /* localToWorld needs an up-to-date matrix, unlike getWorldPosition */
   robotObj.cupWorldRest = deskObj.group.localToWorld(deskObj.cup.position.clone());
+
+  /* floor puddle for the 'error' mode, placed under where the desk drip lands (open floor beside the desk) */
+  var puddleEdgeSign = (p[0] > 0) ? 1 : -1;
+  var puddleSpot = deskObj.group.localToWorld(new THREE.Vector3(puddleEdgeSign*1.18, -PH, 0.32));
+  var floorPuddle = new THREE.Mesh(new THREE.CircleGeometry(0.22, 20), matSpill);
+  floorPuddle.rotation.x = -Math.PI/2;
+  floorPuddle.position.set(puddleSpot.x, 0.012, puddleSpot.z);
+  floorPuddle.visible = false;
+  room.add(floorPuddle);
+  robotObj.floorPuddle = floorPuddle;
+
   robotObj.drinking = false;
   robotObj.drinkStart = 0;
   robotObj.drinkT = 0;
@@ -431,6 +501,7 @@ positions.forEach(function(p, i){
   if (lamp.castShadow){ lamp.shadow.mapSize.set(512,512); lamp.shadow.bias = -0.002; }
   room.add(lamp);
   room.add(lamp.target);
+  robotObj.lamp = lamp;
 });
 
 /* small decor: a plant near back wall */
@@ -450,8 +521,8 @@ function buildPlant(x,z){
   g.position.set(x,0,z);
   room.add(g);
 }
-buildPlant(-6.8, -1.5);
-buildPlant(6.8, -1.5);
+// buildPlant(-6.8, -1.5);
+// buildPlant(6.8, -1.5);
 
 
 /* ---------- fixed supervisor overview camera ---------- */
@@ -498,6 +569,7 @@ var __drinkHandLocal = new THREE.Vector3();
 var __drinkRestQuat = new THREE.Quaternion();
 var __drinkAimQuat = new THREE.Quaternion();
 var __xAxis = new THREE.Vector3(1,0,0);
+var __zzzHeadWorld = new THREE.Vector3();
 
 /* simple analytic 2-bone arm IK so the hand actually arrives at the cup, then at the mouth */
 var IK_L1 = 0.24;
@@ -506,6 +578,23 @@ var IK_L2 = IK_V2_0.length();
 var IK_V1_DIR = new THREE.Vector3(0, -1, 0);
 var IK_BASE_ANGLE = Math.acos( IK_V1_DIR.dot(IK_V2_0.clone().normalize()) );
 var IK_MAX = IK_L1 + IK_L2, IK_MIN = Math.abs(IK_L1 - IK_L2);
+
+/* aims one shoulder+elbow so the hand lands exactly on targetWorld (full snap, no blending) */
+function ikAimArmAt(shoulderGroup, targetWorld){
+  shoulderGroup.getWorldPosition(__drinkShoulderWorld);
+  __drinkToTarget.copy(targetWorld).sub(__drinkShoulderWorld);
+  var D = THREE.MathUtils.clamp(__drinkToTarget.length(), IK_MIN, IK_MAX);
+  __drinkToTarget.normalize();
+
+  var cosAngle = THREE.MathUtils.clamp((D*D - IK_L1*IK_L1 - IK_L2*IK_L2) / (2*IK_L1*IK_L2), -1, 1);
+  var delta = IK_BASE_ANGLE - Math.acos(cosAngle);
+  shoulderGroup.elbowGroup.rotation.x = delta;
+
+  __drinkV2.copy(IK_V2_0).applyAxisAngle(__xAxis, delta);
+  __drinkHandLocal.copy(IK_V1_DIR).multiplyScalar(IK_L1).add(__drinkV2).normalize();
+  __drinkAimQuat.setFromUnitVectors(__drinkHandLocal, __drinkToTarget);
+  shoulderGroup.quaternion.copy(__drinkAimQuat);
+}
 
 /* coffee-sip timeline: reach for the cup -> lift it with the cup -> hold -> lower together -> release */
 var DRINK_DURATION = 3.1;
@@ -518,85 +607,229 @@ function drinkPhaseAmounts(dp){
   if (dp < DRINK_T4) return { reach: 1, lift: 1 - smoothstep01((dp-DRINK_T3)/(DRINK_T4-DRINK_T3)) };
   return { reach: 1 - smoothstep01((dp-DRINK_T4)/(1-DRINK_T4)), lift: 0 };
 }
+/* ---------- robot behavior modes ----------
+   Each mode is a function(r, t): r is the robot object, t is the elapsed clock time.
+   It's responsible for posing that one robot for the current frame.
+   To add a new mode: write a function here, then list it in ROBOT_MODE_HANDLERS below.
+   To use it: set the matching robo1..robo6 variable (near `positions`) to its name. */
+
+var LAMP_COLOR_NORMAL = 0xffb268, LAMP_COLOR_ALERT = 0xff1111;
+var LED_COLOR_NORMAL = 0xffffff, LED_COLOR_ALERT = 0xff1111, LED_COLOR_SLEEP = 0x080a0e;
+
+function modeTrabalhando(r, t){
+  var ph = r.phase;
+  r.zzz.visible = false;
+  r.lamp.visible = true;
+  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
+  r.ledMat.color.setHex(LED_COLOR_NORMAL);
+  r.ledMat.emissive.setHex(LED_COLOR_NORMAL);
+  r.deskStain.visible = false;
+  r.deskDrip.visible = false;
+  r.floorPuddle.visible = false;
+
+  /* occasional, gentle, staggered coffee break: arm reaches the cup first, then lifts it, holds, lowers, releases */
+  if (!r.drinking && t >= r.nextDrink){ r.drinking = true; r.drinkStart = t; }
+  var reachAmt = 0, liftAmt = 0;
+  if (r.drinking){
+    var dp = (t - r.drinkStart) / DRINK_DURATION;
+    if (dp >= 1){
+      r.drinking = false;
+      r.nextDrink = t + 16 + Math.random()*18; /* spaced out, different per robot */
+    } else {
+      var amt = drinkPhaseAmounts(dp);
+      reachAmt = amt.reach; liftAmt = amt.lift;
+    }
+  }
+  r.drinkT = liftAmt;
+
+  r.hips.position.y = 0.85 + Math.sin(t*1.1+ph)*0.012;
+  r.hips.position.x = r.reachLean.x * reachAmt;
+  r.hips.position.z = r.reachLean.z * reachAmt;
+
+  var typeCycle = Math.sin(t*3.4+ph)*0.16 + Math.sin(t*7.1+ph*1.3)*0.05;
+  r.armL.rotation.x = -0.55 + typeCycle;
+  r.armR.rotation.x = -0.55 - typeCycle*0.8;
+  r.armL.rotation.z = 0;
+  r.armR.rotation.z = 0;
+  r.armL.elbowGroup.rotation.x = 0;
+  r.armR.elbowGroup.rotation.x = 0;
+  var yaw = Math.sin(t*0.16+ph)*0.28 + Math.sin(t*0.05+ph*2)*0.12;
+  var pitch = -0.08 + Math.sin(t*0.9+ph)*0.02;
+  r.headPivot.rotation.y = yaw;
+  r.headPivot.rotation.x = pitch;
+  r.chestLight.material.emissiveIntensity = 0.85 + Math.sin(t*2.2+ph)*0.4;
+
+  if (reachAmt > 0.001){
+    r.headPivot.rotation.x += 0.16 * liftAmt;
+    r.headPivot.rotation.y *= (1 - 0.6*liftAmt);
+
+    /* target the hand travels to: resting on the cup, then blending up toward the mouth */
+    r.headPivot.getWorldPosition(__drinkHeadWorld);
+    __drinkHeadWorld.y -= 0.05;
+    __drinkHeadWorld.z += 0.09;
+    __drinkHeadWorld.x += r.drinkSide * 0.04;
+    __drinkHandTarget.copy(r.cupWorldRest).lerp(__drinkHeadWorld, liftAmt);
+
+    /* 2-bone IK: solve elbow bend for distance, then aim the shoulder so the hand lands exactly on target */
+    r.drinkArm.getWorldPosition(__drinkShoulderWorld);
+    __drinkToTarget.copy(__drinkHandTarget).sub(__drinkShoulderWorld);
+    var D = THREE.MathUtils.clamp(__drinkToTarget.length(), IK_MIN, IK_MAX);
+    __drinkToTarget.normalize();
+
+    var cosAngle = THREE.MathUtils.clamp((D*D - IK_L1*IK_L1 - IK_L2*IK_L2) / (2*IK_L1*IK_L2), -1, 1);
+    var neededAngle = Math.acos(cosAngle);
+    var delta = IK_BASE_ANGLE - neededAngle;
+    r.drinkElbow.rotation.x = delta * reachAmt;
+
+    __drinkV2.copy(IK_V2_0).applyAxisAngle(__xAxis, delta);
+    __drinkHandLocal.copy(IK_V1_DIR).multiplyScalar(IK_L1).add(__drinkV2).normalize();
+
+    __drinkRestQuat.copy(r.drinkArm.quaternion);
+    __drinkAimQuat.setFromUnitVectors(__drinkHandLocal, __drinkToTarget);
+    r.drinkArm.quaternion.copy(__drinkRestQuat).slerp(__drinkAimQuat, reachAmt);
+
+    /* the cup rides exactly where the hand is heading */
+    r.deskGroup.worldToLocal(__drinkLocalTarget.copy(__drinkHandTarget));
+    r.cup.position.lerpVectors(r.cupBasePos, __drinkLocalTarget, liftAmt);
+    r.cup.rotation.z = r.cupBaseRot.z - r.drinkSide * 0.6 * liftAmt;
+    r.cup.rotation.x = r.cupBaseRot.x - 0.45 * liftAmt;
+  } else {
+    r.cup.position.copy(r.cupBasePos);
+    r.cup.rotation.z = r.cupBaseRot.z;
+    r.cup.rotation.x = r.cupBaseRot.x;
+  }
+}
+
+function modeParado(r, t){
+  /* idle: sitting still at the desk, no typing, no coffee — just a faint breathing bob */
+  var ph = r.phase;
+  r.zzz.visible = false;
+  r.lamp.visible = true;
+  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
+  r.ledMat.color.setHex(LED_COLOR_NORMAL);
+  r.ledMat.emissive.setHex(LED_COLOR_NORMAL);
+  r.deskStain.visible = false;
+  r.deskDrip.visible = false;
+  r.floorPuddle.visible = false;
+  r.hips.position.y = 0.85 + Math.sin(t*0.7+ph)*0.008;
+  r.hips.position.x = 0;
+  r.hips.position.z = 0;
+  r.armL.rotation.set(-0.55, 0, 0);
+  r.armR.rotation.set(-0.55, 0, 0);
+  r.armL.elbowGroup.rotation.x = 0;
+  r.armR.elbowGroup.rotation.x = 0;
+  r.headPivot.rotation.set(-0.08, 0, 0);
+  r.chestLight.material.emissiveIntensity = 0.85 + Math.sin(t*1.1+ph)*0.15;
+  r.cup.position.copy(r.cupBasePos);
+  r.cup.rotation.copy(r.cupBaseRot);
+}
+
+function modeDormindo(r, t){
+  /* asleep: bowed forward at the hips until the head rests on the desk, plus a "zzz" drifting up */
+  var ph = r.phase;
+  r.lamp.visible = false;
+  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
+  r.ledMat.color.setHex(LED_COLOR_SLEEP);
+  r.ledMat.emissive.setHex(LED_COLOR_SLEEP);
+  r.deskStain.visible = false;
+  r.deskDrip.visible = false;
+  r.floorPuddle.visible = false;
+  var BOW = 1.42; /* radians — forward bow so the head reaches desk height */
+
+  r.hips.rotation.x = BOW + Math.sin(t*0.5+ph)*0.012; /* tiny breathing sway */
+  r.hips.position.y = 0.82 + Math.sin(t*0.5+ph)*0.005;
+  r.hips.position.x = 0;
+  r.hips.position.z = -0.2; /* the forward bow alone overshoots past the monitor; pull back so the head lands in the open desk space */
+
+  r.armL.rotation.set(0,0,0);
+  r.armR.rotation.set(0,0,0);
+  r.armL.elbowGroup.rotation.x = 0;
+  r.armR.elbowGroup.rotation.x = 0;
+  r.headPivot.rotation.set(0,0,0);
+
+  r.chestLight.material.emissiveIntensity = 0.25 + Math.sin(t*0.5+ph)*0.08; /* dim, slow pulse: power-save look */
+
+  r.cup.position.copy(r.cupBasePos);
+  r.cup.rotation.copy(r.cupBaseRot);
+
+  /* zzz: loops upward from the head, fading in then out, resetting to start over */
+  r.headPivot.getWorldPosition(__zzzHeadWorld);
+  var cyc = (t*0.35 + ph*0.27) % 1;
+  var rise = cyc * 1.2;
+  var fade = Math.sin(cyc * Math.PI);
+  r.zzz.visible = true;
+  r.zzz.position.set(
+    __zzzHeadWorld.x - r.group.position.x + 0.15,
+    __zzzHeadWorld.y - r.group.position.y + 0.1 + rise,
+    __zzzHeadWorld.z - r.group.position.z
+  );
+  r.zzz.material.opacity = 0.9 * fade;
+  var s = 0.26 + cyc*0.14;
+  r.zzz.scale.set(s, s, 1);
+}
+
+function modeError(r, t){
+  /* malfunctioning: both hands clamped to the head, jittery/glitchy movement,
+     red-alert lamp + floor LED, and the coffee cup knocked over with coffee
+     spilled on the desk and floor */
+  var ph = r.phase;
+  r.zzz.visible = false;
+  r.lamp.visible = true;
+  r.lamp.color.setHex(LAMP_COLOR_ALERT);
+  r.ledMat.color.setHex(LED_COLOR_ALERT);
+  r.ledMat.emissive.setHex(LED_COLOR_ALERT);
+
+  r.hips.rotation.x = 0;
+  r.hips.position.y = 0.85 + Math.sin(t*9+ph)*0.01 + Math.sin(t*23+ph*1.7)*0.005;
+  r.hips.position.x = Math.sin(t*13+ph)*0.012;
+  r.hips.position.z = 0;
+
+  /* both hands clamp onto the sides of the head, shaking — same 2-bone IK as the coffee
+     reach, aimed at a point on the head instead of the cup, so the hands actually land there */
+  r.headPivot.getWorldPosition(__drinkHeadWorld);
+  __drinkHeadWorld.x += 0.15 + Math.sin(t*22+ph)*0.015;
+  __drinkHeadWorld.y += 0.02 + Math.sin(t*17+ph)*0.01;
+  __drinkHeadWorld.z += 0.06;
+  ikAimArmAt(r.armR, __drinkHeadWorld);
+
+  r.headPivot.getWorldPosition(__drinkHeadWorld);
+  __drinkHeadWorld.x -= 0.15 + Math.sin(t*20+ph+1.3)*0.015;
+  __drinkHeadWorld.y += 0.02 + Math.sin(t*15+ph+0.7)*0.01;
+  __drinkHeadWorld.z += 0.06;
+  ikAimArmAt(r.armL, __drinkHeadWorld);
+
+  /* glitchy, shaky head */
+  r.headPivot.rotation.y = Math.sin(t*15+ph)*0.35 + Math.sin(t*37+ph)*0.12;
+  r.headPivot.rotation.x = -0.05 + Math.sin(t*18+ph)*0.15;
+
+  /* flickering warning pulse instead of the calm idle glow */
+  r.chestLight.material.color.set(0xff2222);
+  r.chestLight.material.emissive.set(0xff0000);
+  r.chestLight.material.emissiveIntensity = Math.random() > 0.35 ? 1.3 : 0.2;
+
+  /* the cup toppled over, coffee spilled across the desk and dripping onto the floor */
+  r.cup.position.set(r.cupBasePos.x + 0.05, 0.735, r.cupBasePos.z - 0.02);
+  r.cup.rotation.set(0, 0, 1.65);
+  r.deskStain.visible = true;
+  r.deskDrip.visible = true;
+  r.floorPuddle.visible = true;
+}
+
+var ROBOT_MODE_HANDLERS = {
+  trabalhando: modeTrabalhando,
+  parado: modeParado,
+  dormindo: modeDormindo,
+  error: modeError
+};
+
 function animate(){
   requestAnimationFrame(animate);
   var t = clock.getElapsedTime();
   frame++;
 
   robots.forEach(function(r){
-    var ph = r.phase;
-
-    /* occasional, gentle, staggered coffee break: arm reaches the cup first, then lifts it, holds, lowers, releases */
-    if (!r.drinking && t >= r.nextDrink){ r.drinking = true; r.drinkStart = t; }
-    var reachAmt = 0, liftAmt = 0;
-    if (r.drinking){
-      var dp = (t - r.drinkStart) / DRINK_DURATION;
-      if (dp >= 1){
-        r.drinking = false;
-        r.nextDrink = t + 16 + Math.random()*18; /* spaced out, different per robot */
-      } else {
-        var amt = drinkPhaseAmounts(dp);
-        reachAmt = amt.reach; liftAmt = amt.lift;
-      }
-    }
-    r.drinkT = liftAmt;
-
-    r.hips.position.y = 0.85 + Math.sin(t*1.1+ph)*0.012;
-    r.hips.position.x = r.reachLean.x * reachAmt;
-    r.hips.position.z = r.reachLean.z * reachAmt;
-
-    var typeCycle = Math.sin(t*3.4+ph)*0.16 + Math.sin(t*7.1+ph*1.3)*0.05;
-    r.armL.rotation.x = -0.55 + typeCycle;
-    r.armR.rotation.x = -0.55 - typeCycle*0.8;
-    r.armL.rotation.z = 0;
-    r.armR.rotation.z = 0;
-    r.armL.elbowGroup.rotation.x = 0;
-    r.armR.elbowGroup.rotation.x = 0;
-    var yaw = Math.sin(t*0.16+ph)*0.28 + Math.sin(t*0.05+ph*2)*0.12;
-    var pitch = -0.08 + Math.sin(t*0.9+ph)*0.02;
-    r.headPivot.rotation.y = yaw;
-    r.headPivot.rotation.x = pitch;
-    r.chestLight.material.emissiveIntensity = 0.85 + Math.sin(t*2.2+ph)*0.4;
-
-    if (reachAmt > 0.001){
-      r.headPivot.rotation.x += 0.16 * liftAmt;
-      r.headPivot.rotation.y *= (1 - 0.6*liftAmt);
-
-      /* target the hand travels to: resting on the cup, then blending up toward the mouth */
-      r.headPivot.getWorldPosition(__drinkHeadWorld);
-      __drinkHeadWorld.y -= 0.05;
-      __drinkHeadWorld.z += 0.09;
-      __drinkHeadWorld.x += r.drinkSide * 0.04;
-      __drinkHandTarget.copy(r.cupWorldRest).lerp(__drinkHeadWorld, liftAmt);
-
-      /* 2-bone IK: solve elbow bend for distance, then aim the shoulder so the hand lands exactly on target */
-      r.drinkArm.getWorldPosition(__drinkShoulderWorld);
-      __drinkToTarget.copy(__drinkHandTarget).sub(__drinkShoulderWorld);
-      var D = THREE.MathUtils.clamp(__drinkToTarget.length(), IK_MIN, IK_MAX);
-      __drinkToTarget.normalize();
-
-      var cosAngle = THREE.MathUtils.clamp((D*D - IK_L1*IK_L1 - IK_L2*IK_L2) / (2*IK_L1*IK_L2), -1, 1);
-      var neededAngle = Math.acos(cosAngle);
-      var delta = IK_BASE_ANGLE - neededAngle;
-      r.drinkElbow.rotation.x = delta * reachAmt;
-
-      __drinkV2.copy(IK_V2_0).applyAxisAngle(__xAxis, delta);
-      __drinkHandLocal.copy(IK_V1_DIR).multiplyScalar(IK_L1).add(__drinkV2).normalize();
-
-      __drinkRestQuat.copy(r.drinkArm.quaternion);
-      __drinkAimQuat.setFromUnitVectors(__drinkHandLocal, __drinkToTarget);
-      r.drinkArm.quaternion.copy(__drinkRestQuat).slerp(__drinkAimQuat, reachAmt);
-
-      /* the cup rides exactly where the hand is heading */
-      r.deskGroup.worldToLocal(__drinkLocalTarget.copy(__drinkHandTarget));
-      r.cup.position.lerpVectors(r.cupBasePos, __drinkLocalTarget, liftAmt);
-      r.cup.rotation.z = r.cupBaseRot.z - r.drinkSide * 0.6 * liftAmt;
-      r.cup.rotation.x = r.cupBaseRot.x - 0.45 * liftAmt;
-    } else {
-      r.cup.position.copy(r.cupBasePos);
-      r.cup.rotation.z = r.cupBaseRot.z;
-      r.cup.rotation.x = r.cupBaseRot.x;
-    }
+    var handler = ROBOT_MODE_HANDLERS[r.mode] || modeTrabalhando;
+    handler(r, t);
   });
 
   if (frame % 20 === 0){
