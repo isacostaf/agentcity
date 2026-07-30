@@ -33,7 +33,7 @@ var renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, powerPre
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -92,16 +92,6 @@ var skyTex = makeCanvasTexture(function(ctx,w,h){
   }
 }, 512, 320);
 
-/* "zzz" sleep icon, used by the 'sleepingmode' robot mode */
-var zzzTex = makeCanvasTexture(function(ctx,w,h){
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(222,236,255,0.95)';
-  ctx.save(); ctx.translate(w*0.24,h*0.8); ctx.rotate(-0.2); ctx.font = 'bold 30px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
-  ctx.save(); ctx.translate(w*0.53,h*0.52); ctx.rotate(-0.2); ctx.font = 'bold 44px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
-  ctx.save(); ctx.translate(w*0.8,h*0.22); ctx.rotate(-0.2); ctx.font = 'bold 58px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
-}, 160, 160);
-
 /* ---------- materials ---------- */
 var matWall = new THREE.MeshStandardMaterial({ color:0x252a34, roughness:0.85, metalness:0.05 });
 var matWallDark = new THREE.MeshStandardMaterial({ color:0x1b2028, roughness:0.9, metalness:0.05 });
@@ -116,10 +106,6 @@ var matChair = new THREE.MeshStandardMaterial({ color:0x20242c, roughness:0.55, 
 var matKeyboard = new THREE.MeshStandardMaterial({ color:0x14161b, roughness:0.5, metalness:0.3 });
 var matPlantPot = new THREE.MeshStandardMaterial({ color:0x3d3a34, roughness:0.7, metalness:0.1 });
 var matLeaf = new THREE.MeshStandardMaterial({ color:0x3f7d4a, roughness:0.6, metalness:0.0 });
-var matCup = new THREE.MeshStandardMaterial({ color:0xf5f1e8, roughness:0.3, metalness:0.05 });
-var matCoffee = new THREE.MeshStandardMaterial({ color:0x3b2417, roughness:0.4, metalness:0.0 });
-var matSpill = new THREE.MeshStandardMaterial({ color:0x2a1810, roughness:0.2, metalness:0.05, transparent:true, opacity:0.85 });
-var matPlatformRim = new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xffffff, emissiveIntensity:1.8, roughness:0.4 });
 
 /* ---------- room ---------- */
 var ROOM_W = 15, ROOM_D_BACK = 6.4, ROOM_H = 5.2;
@@ -148,11 +134,11 @@ room.add(rightWall);
 
 /* window on back wall */
 var winMat = new THREE.MeshBasicMaterial({ map:skyTex.texture });
-var windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(12.96, 3.51), winMat);
-windowMesh.position.set(0, 2.85, -ROOM_D_BACK + 0.03);
+var windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 2.6), winMat);
+windowMesh.position.set(0, 3.05, -ROOM_D_BACK + 0.03);
 room.add(windowMesh);
-var winFrame = new THREE.Mesh(new THREE.PlaneGeometry(13.365, 3.915), new THREE.MeshStandardMaterial({color:0x0c0e12, roughness:0.6}));
-winFrame.position.set(0, 2.85, -ROOM_D_BACK + 0.01);
+var winFrame = new THREE.Mesh(new THREE.PlaneGeometry(9.9, 2.9), new THREE.MeshStandardMaterial({color:0x0c0e12, roughness:0.6}));
+winFrame.position.set(0, 3.05, -ROOM_D_BACK + 0.01);
 room.add(winFrame);
 var winGlow = new THREE.PointLight(0x5f86b3, 2.2, 9, 2);
 winGlow.position.set(0, 3, -ROOM_D_BACK + 1.6);
@@ -160,15 +146,13 @@ room.add(winGlow);
 
 /* ceiling light strips */
 var ceilLightMat = new THREE.MeshStandardMaterial({ color:0xdfeeff, emissive:0xbfd8ff, emissiveIntensity:1.6, roughness:0.4 });
-[-4.6,-1.6,1.6,4.6].forEach(function(x, i){
+[-4.6,-1.6,1.6,4.6].forEach(function(x){
   var strip = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.06,0.35), ceilLightMat);
   strip.position.set(x, ROOM_H-0.05, 0.5);
   room.add(strip);
-  if (i % 2 === 1){ /* only half the strips get a real light; the rest just glow via emissive material */
-    var pl = new THREE.PointLight(0xcfe4ff, 1.3, 10, 2);
-    pl.position.set(x, ROOM_H-0.5, 0.5);
-    room.add(pl);
-  }
+  var pl = new THREE.PointLight(0xcfe4ff, 0.9, 8, 2);
+  pl.position.set(x, ROOM_H-0.5, 0.5);
+  room.add(pl);
 });
 
 /* ambient fill */
@@ -176,7 +160,7 @@ scene.add(new THREE.HemisphereLight(0x9fb8d8, 0x14161c, 0.55));
 var sun = new THREE.DirectionalLight(0xdfe9ff, 0.6);
 sun.position.set(-6, 8, 4);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024,1024);
+sun.shadow.mapSize.set(2048,2048);
 sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
 sun.shadow.camera.top = 10; sun.shadow.camera.bottom = -10;
 sun.shadow.camera.far = 24; sun.shadow.bias = -0.0015;
@@ -198,31 +182,8 @@ scene.add(sun);
   window.__dust = pts;
 })();
 
-/* ---------- coffee cup (saucer + body + handle) ---------- */
-function buildCup(){
-  var saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.1,0.014,20), matCup);
-  saucer.castShadow = true; saucer.receiveShadow = true;
-
-  var g = new THREE.Group(); // agora só a xícara em si
-  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.072,0.058,0.09,20), matCup);
-  body.position.y = 0.014/2 + 0.09/2;
-  body.castShadow = true;
-  g.add(body);
-  var coffee = new THREE.Mesh(new THREE.CircleGeometry(0.066,20), matCoffee);
-  coffee.rotation.x = -Math.PI/2;
-  coffee.position.y = 0.014/2 + 0.09 - 0.004;
-  g.add(coffee);
-  var handle = new THREE.Mesh(new THREE.TorusGeometry(0.034,0.01,8,16,Math.PI*1.4), matCup);
-  handle.rotation.z = Math.PI/2; handle.rotation.y = Math.PI/2;
-  handle.position.set(0.09, 0.014/2 + 0.09/2, 0);
-  handle.castShadow = true;
-  g.add(handle);
-
-  return { saucer: saucer, cup: g };
-}
-
 /* ---------- desk + chair + robot factory ---------- */
-function buildDesk(mirrorCup){
+function buildDesk(){
   var g = new THREE.Group();
   var top = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.95), matDesk);
   top.position.y = 0.75; top.castShadow = true; top.receiveShadow = true;
@@ -249,6 +210,9 @@ function buildDesk(mirrorCup){
   screen.position.z = 0.018;
   screenGroup.add(screen);
   g.add(screenGroup);
+  var glow = new THREE.PointLight(0x6fd3ff, 0.55, 1.6, 2);
+  glow.position.set(0,1.14,0.05);
+  g.add(glow);
   /* keyboard + mouse */
   var kb = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.02,0.18), matKeyboard);
   kb.position.set(0,0.79,0.22); kb.castShadow = true;
@@ -256,33 +220,11 @@ function buildDesk(mirrorCup){
   var mouse = new THREE.Mesh(new THREE.BoxGeometry(0.07,0.02,0.1), matKeyboard);
   mouse.position.set(0.34,0.79,0.24);
   g.add(mouse);
-  /* coffee cup */
-    var cupParts = buildCup();
-    var cupX = mirrorCup ? 0.72 : -0.72;
-    cupParts.saucer.position.set(cupX, 0.78, 0.3);   // fica preso na mesa
-    g.add(cupParts.saucer);
-    cupParts.cup.position.set(cupX, 0.78, 0.3);       // essa é a que anima
-    g.add(cupParts.cup);
-
-  /* coffee spill decor for the 'errormode' mode — hidden until then.
-     Drips off the side of the desk (same side as the cup) rather than the robot-facing
-     edge, so the floor puddle lands in open space instead of under the robot/chair. */
-  var edgeSign = mirrorCup ? 1 : -1;
-  var edgeX = edgeSign * 1.0;
-  var deskStain = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), matSpill);
-  deskStain.rotation.x = -Math.PI/2;
-  deskStain.position.set(cupX + edgeSign*0.12, 0.781, 0.32);
-  deskStain.visible = false;
-  g.add(deskStain);
-
-  var deskDrip = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.05), matSpill);
-  deskDrip.position.set(edgeX, 0.74, 0.32);
-  deskDrip.rotation.y = Math.PI/2;
-  deskDrip.rotation.x = -1.15 * edgeSign; /* angled down over the desk's side edge */
-  deskDrip.visible = false;
-  g.add(deskDrip);
-
-  return { group:g, cup:cupParts.cup, deskStain:deskStain, deskDrip:deskDrip, redrawScreen:function(t, seed){
+  /* mug */
+  var mug = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.04,0.09,12), new THREE.MeshStandardMaterial({color:0xb0503a, roughness:0.5}));
+  mug.position.set(-0.7,0.83,0.28); mug.castShadow = true;
+  g.add(mug);
+  return { group:g, redrawScreen:function(t, seed){
     var ctx = screenTex.ctx, w = screenTex.canvas.width, h = screenTex.canvas.height;
     ctx.fillStyle = '#081018'; ctx.fillRect(0,0,w,h);
     var lines = 11;
@@ -366,7 +308,6 @@ function buildRobot(accent, phase){
     elbow.add(hand);
     shoulder.add(elbow);
     hips.add(shoulder);
-    shoulder.elbowGroup = elbow;
     return shoulder;
   }
   var armL = buildArm(-1);
@@ -379,8 +320,305 @@ function buildRobot(accent, phase){
     hips.add(leg);
   });
 
-    /* BREAK CORNER COFFEE*/
-  function buildBreakCorner(x,z,rotY){
+  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips };
+}
+
+/* ---------- assemble desks ---------- */
+var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081];
+var positions = [ [-3.6,-2.0], [3.6,-2.0], [-3.6,1.9], [3.6,1.9] ];
+var robots = [];
+var desks = [];
+
+positions.forEach(function(p, i){
+  var deskObj = buildDesk();
+  deskObj.group.position.set(p[0], 0, p[1]);
+  deskObj.group.rotation.y = Math.PI; /* mirrors monitor/keyboard so the robot can sit facing us */
+  room.add(deskObj.group);
+  desks.push(deskObj);
+
+  var chair = buildChair();
+  chair.position.set(p[0], 0, p[1] - 0.62);
+  room.add(chair);
+
+  var robotObj = buildRobot(accents[i], i*1.9 + i);
+  robotObj.group.position.set(p[0], 0, p[1] - 0.5);
+  /* no extra rotation: the robot's built-in forward direction now faces the camera */
+  room.add(robotObj.group);
+  robots.push(robotObj);
+
+  var lamp = new THREE.SpotLight(0xffb268, 6, 4.5, Math.PI/5, 0.5, 1.6);
+  lamp.position.set(p[0] + (i%2===0?-0.6:0.6), 2.4, p[1]-0.2);
+  lamp.target = deskObj.group;
+  lamp.castShadow = (i < 2);
+  if (lamp.castShadow){ lamp.shadow.mapSize.set(1024,1024); lamp.shadow.bias = -0.002; }
+  room.add(lamp);
+  room.add(lamp.target);
+});
+
+/* small decor: a plant near back wall */
+function buildPlant(x,z){
+  var g = new THREE.Group();
+  var pot = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.12,0.22,12), matPlantPot);
+  pot.position.y = 0.11; pot.castShadow = true;
+  g.add(pot);
+  for (var i=0;i<7;i++){
+    var leaf = new THREE.Mesh(new THREE.ConeGeometry(0.05,0.4,6), matLeaf);
+    var a = (i/7)*Math.PI*2;
+    leaf.position.set(Math.cos(a)*0.07, 0.4, Math.sin(a)*0.07);
+    leaf.rotation.z = Math.cos(a)*0.4; leaf.rotation.x = Math.sin(a)*0.4;
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+  g.position.set(x,0,z);
+  room.add(g);
+}
+buildPlant(-6.8, -1.5);
+buildPlant(6.8, -1.5);
+
+/* ---------- extra tech-office set dressing ---------- */
+
+/* server racks with blinking LEDs, tucked in the back corners */
+function buildServerRack(x,z){
+  var g = new THREE.Group();
+  var frame = new THREE.Mesh(new THREE.BoxGeometry(0.7,2.0,0.55), new THREE.MeshStandardMaterial({color:0x15171c, roughness:0.5, metalness:0.6}));
+  frame.position.y = 1.0; frame.castShadow = true; frame.receiveShadow = true;
+  g.add(frame);
+  var slot = new THREE.Mesh(new THREE.BoxGeometry(0.74,0.02,0.58), matJoint);
+  for (var s=0;s<4;s++){ var sl = slot.clone(); sl.position.y = 0.25+s*0.5; g.add(sl); }
+  var leds = [];
+  var rows = 8, cols = 4;
+  for (var r=0;r<rows;r++){
+    for (var c=0;c<cols;c++){
+      var ledColor = Math.random()>0.78 ? 0xff5a5a : (Math.random()>0.5 ? 0x59d6ff : 0x7ee081);
+      var ledMat = new THREE.MeshStandardMaterial({ color:ledColor, emissive:ledColor, emissiveIntensity:1.2 });
+      var led = new THREE.Mesh(new THREE.BoxGeometry(0.045,0.03,0.01), ledMat);
+      led.position.set(-0.27+c*0.185, 1.78-r*0.2, 0.281);
+      g.add(led);
+      leds.push({ mesh:led, phase:Math.random()*10, speed:2+Math.random()*4 });
+    }
+  }
+  g.position.set(x,0,z);
+  room.add(g);
+  return leds;
+}
+var rackLeds = [].concat(
+  buildServerRack(-6.55, -5.55),
+  buildServerRack(6.55, -5.55)
+);
+
+/* wall-mounted dashboard screens on the side walls */
+function buildWallScreen(x,y,z,rotY,w,h){
+  var g = new THREE.Group();
+  var frame = new THREE.Mesh(new THREE.BoxGeometry(w+0.08,h+0.08,0.04), new THREE.MeshStandardMaterial({color:0x0c0d10, roughness:0.4, metalness:0.4}));
+  g.add(frame);
+  var tex = makeCanvasTexture(function(){}, 256,160);
+  var mat = new THREE.MeshStandardMaterial({ map:tex.texture, emissiveMap:tex.texture, emissive:0xffffff, emissiveIntensity:0.85, roughness:0.3, side:THREE.DoubleSide });
+  var screen = new THREE.Mesh(new THREE.PlaneGeometry(w,h), mat);
+  screen.position.z = 0.025;
+  g.add(screen);
+  g.position.set(x,y,z);
+  g.rotation.y = rotY||0;
+  room.add(g);
+  return { redraw:function(t,seed){
+    var ctx = tex.ctx, cw = tex.canvas.width, ch = tex.canvas.height;
+    ctx.fillStyle = '#0a121c'; ctx.fillRect(0,0,cw,ch);
+    var bars = 8;
+    for (var i=0;i<bars;i++){
+      var bh = 20 + ((Math.sin(seed+i*1.3+t*0.7)+1)/2) * (ch-50);
+      ctx.fillStyle = i%3===0 ? 'rgba(255,111,145,0.85)' : 'rgba(89,214,255,0.8)';
+      ctx.fillRect(14+i*(cw-28)/bars, ch-10-bh, (cw-28)/bars-6, bh);
+    }
+    ctx.strokeStyle = 'rgba(126,224,129,0.9)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (var x2=0;x2<=cw;x2+=8){
+      var yy = 22 + Math.sin(x2*0.05+seed+t*0.8)*10;
+      if (x2===0) ctx.moveTo(x2,yy); else ctx.lineTo(x2,yy);
+    }
+    ctx.stroke();
+    tex.texture.needsUpdate = true;
+  }};
+}
+var wallScreens = [
+  buildWallScreen(-7.44, 2.35, -3.4, Math.PI/2, 1.25, 0.78),
+  buildWallScreen(7.44, 2.35, -3.4, -Math.PI/2, 1.25, 0.78)
+];
+
+/* rotating holographic pillar, centerpiece between the two robot rows */
+function buildHoloPillar(x,z){
+  var g = new THREE.Group();
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.12,20), matJoint);
+  base.position.y = 0.06; base.castShadow = true;
+  g.add(base);
+  var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.9,10), matJoint);
+  stand.position.y = 0.55;
+  g.add(stand);
+  var holoMat = new THREE.MeshStandardMaterial({ color:0x59d6ff, emissive:0x59d6ff, emissiveIntensity:1.4, wireframe:true, transparent:true, opacity:0.85 });
+  var holo = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28,1), holoMat);
+  holo.position.y = 1.25;
+  g.add(holo);
+  var holoLight = new THREE.PointLight(0x59d6ff, 1.3, 3, 2);
+  holoLight.position.y = 1.25;
+  g.add(holoLight);
+  g.position.set(x,0,z);
+  room.add(g);
+  return holo;
+}
+var holoPillar = buildHoloPillar(0, -0.45);
+
+/* glowing floor ring beneath the hologram + accent baseboard strips */
+function addFloorRing(x,z,r,color){
+  var ring = new THREE.Mesh(new THREE.RingGeometry(r-0.03,r,40), new THREE.MeshStandardMaterial({ color:color, emissive:color, emissiveIntensity:1.0, side:THREE.DoubleSide, transparent:true, opacity:0.8 }));
+  ring.rotation.x = -Math.PI/2; ring.position.set(x,0.015,z);
+  room.add(ring);
+}
+addFloorRing(0,-0.45,0.55,0x59d6ff);
+(function(){
+  var baseMat = new THREE.MeshStandardMaterial({ color:0x3a6ea8, emissive:0x3a6ea8, emissiveIntensity:0.7 });
+  var stripL = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.04,11.4), baseMat);
+  stripL.position.set(-7.47,0.02,0.4);
+  room.add(stripL);
+  var stripR = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.04,11.4), baseMat);
+  stripR.position.set(7.47,0.02,0.4);
+  room.add(stripR);
+})();
+
+/* robot charging dock in the back corner */
+function buildChargingDock(x,z){
+  var g = new THREE.Group();
+  var pad = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.05,24), new THREE.MeshStandardMaterial({color:0x1b1e24, roughness:0.5, metalness:0.4}));
+  pad.position.y = 0.025; pad.receiveShadow = true;
+  g.add(pad);
+  var ringMat = new THREE.MeshStandardMaterial({ color:0xffcf5c, emissive:0xffcf5c, emissiveIntensity:1.2 });
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.4,0.02,8,32), ringMat);
+  ring.rotation.x = Math.PI/2; ring.position.y = 0.05;
+  g.add(ring);
+  var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.4,10), matJoint);
+  pole.position.set(0.4,0.7,0);
+  g.add(pole);
+  var sign = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.18,0.02), new THREE.MeshStandardMaterial({color:0x101114}));
+  sign.position.set(0.4,1.42,0);
+  g.add(sign);
+  g.position.set(x,0,z);
+  room.add(g);
+  return ring;
+}
+var dockRing = buildChargingDock(0, -5.6);
+
+/* ceiling ducts running the depth of the room, industrial-tech touch */
+function buildDuct(x){
+  var duct = new THREE.Mesh(new THREE.BoxGeometry(0.34,0.28,10.4), new THREE.MeshStandardMaterial({color:0x1a1d23, roughness:0.6, metalness:0.5}));
+  duct.position.set(x, ROOM_H-0.2, 0.5);
+  room.add(duct);
+}
+buildDuct(-2.3);
+buildDuct(2.3);
+
+/* status panels flanking the window */
+function buildStatusPanel(x,y,z,label,color){
+  var g = new THREE.Group();
+  var panel = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.4,0.03), new THREE.MeshStandardMaterial({color:0x0c0e12}));
+  g.add(panel);
+  var tex = makeCanvasTexture(function(ctx,w,h){
+    ctx.fillStyle = '#060a10'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = color; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(label, w/2, h/2+11);
+  }, 256,96);
+  var mat = new THREE.MeshStandardMaterial({ map:tex.texture, emissiveMap:tex.texture, emissive:0xffffff, emissiveIntensity:0.9 });
+  var scr = new THREE.Mesh(new THREE.PlaneGeometry(0.92,0.33), mat);
+  scr.position.z = 0.02;
+  g.add(scr);
+  g.position.set(x,y,z);
+  room.add(g);
+}
+buildStatusPanel(-5.6, 3.35, -6.35, 'SISTEMA ONLINE', '#7ee081');
+buildStatusPanel(5.6, 3.35, -6.35, '4/4 ATIVOS', '#59d6ff');
+
+/* ---------- classic office furniture, so it still reads as an office and not just a lab ---------- */
+
+function buildFileCabinet(x,z,rotY){
+  var g = new THREE.Group();
+  var body = new THREE.Mesh(new THREE.BoxGeometry(0.5,1.3,0.6), new THREE.MeshStandardMaterial({color:0x4a5568, roughness:0.5, metalness:0.3}));
+  body.position.y = 0.65; body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+  for (var i=0;i<3;i++){
+    var seam = new THREE.Mesh(new THREE.BoxGeometry(0.52,0.01,0.62), matJoint);
+    seam.position.set(0, 0.22+i*0.42, 0);
+    g.add(seam);
+    var handle = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.025,0.03), matJoint);
+    handle.position.set(0, 0.42+i*0.42, 0.315);
+    g.add(handle);
+  }
+  g.position.set(x,0,z); g.rotation.y = rotY||0;
+  room.add(g);
+}
+buildFileCabinet(-7.12, -4.9, Math.PI/2);
+buildFileCabinet(-7.12, -4.27, Math.PI/2);
+buildFileCabinet(-7.12, -3.64, Math.PI/2);
+
+function buildWaterStation(x,z){
+  var g = new THREE.Group();
+  var tray = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.04,16), new THREE.MeshStandardMaterial({color:0x15171b, roughness:0.4, metalness:0.5}));
+  tray.position.y = 0.02; tray.receiveShadow = true;
+  g.add(tray);
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.19,1.05,16), new THREE.MeshStandardMaterial({color:0xeef1f4, roughness:0.25, metalness:0.15}));
+  body.position.y = 0.55; body.castShadow = true;
+  g.add(body);
+  var panel = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.02), new THREE.MeshStandardMaterial({color:0x1c1f24, roughness:0.4}));
+  panel.position.set(0,0.55,0.175);
+  g.add(panel);
+  var hotBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.015,10), new THREE.MeshStandardMaterial({color:0xd8483f, emissive:0xd8483f, emissiveIntensity:0.6}));
+  hotBtn.rotation.x = Math.PI/2; hotBtn.position.set(0,0.68,0.19);
+  g.add(hotBtn);
+  var coldBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.015,10), new THREE.MeshStandardMaterial({color:0x3f8fd8, emissive:0x3f8fd8, emissiveIntensity:0.6}));
+  coldBtn.rotation.x = Math.PI/2; coldBtn.position.set(0,0.6,0.19);
+  g.add(coldBtn);
+  var dispTex = makeCanvasTexture(function(ctx,w,h){
+    ctx.fillStyle = '#05141c'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#5fe0ff'; ctx.font = 'bold 46px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('5°C', w/2, h/2+16);
+  },128,64);
+  var dispMat = new THREE.MeshStandardMaterial({ map:dispTex.texture, emissiveMap:dispTex.texture, emissive:0xffffff, emissiveIntensity:0.9, side:THREE.DoubleSide });
+  var disp = new THREE.Mesh(new THREE.PlaneGeometry(0.09,0.045), dispMat);
+  disp.position.set(0,0.76,0.191);
+  g.add(disp);
+  var bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.145,0.165,0.5,16), new THREE.MeshStandardMaterial({color:0x8fd0e8, roughness:0.1, metalness:0.05, transparent:true, opacity:0.7}));
+  bottle.position.y = 1.32; bottle.castShadow = true;
+  g.add(bottle);
+  var waterLine = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,0.28,16), new THREE.MeshStandardMaterial({color:0x4fb8e0, transparent:true, opacity:0.55}));
+  waterLine.position.y = 1.2;
+  g.add(waterLine);
+  var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.07,12), matJoint);
+  cap.position.y = 1.6;
+  g.add(cap);
+  [0,0.09].forEach(function(dy){
+    var spigot = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.09,8), matJoint);
+    spigot.rotation.z = Math.PI/2;
+    spigot.position.set(0.2, 0.82-dy, 0);
+    g.add(spigot);
+  });
+  var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.5,14,1,true), new THREE.MeshStandardMaterial({color:0xcfe6f2, roughness:0.15, transparent:true, opacity:0.5, side:THREE.DoubleSide}));
+  tube.position.set(-0.28,0.8,0);
+  g.add(tube);
+  for (var cI=0; cI<5; cI++){
+    var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.042,0.034,0.07,12), new THREE.MeshStandardMaterial({color:0xf4f2ec, roughness:0.5}));
+    cup.position.set(-0.28, 0.58+cI*0.045, 0);
+    g.add(cup);
+  }
+  var cupTray = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.02,12), matJoint);
+  cupTray.position.set(-0.28,0.52,0);
+  g.add(cupTray);
+  var mat2 = new THREE.Mesh(new THREE.CircleGeometry(0.55,24), new THREE.MeshStandardMaterial({color:0x22262d, roughness:0.9}));
+  mat2.rotation.x = -Math.PI/2; mat2.position.y = 0.008;
+  g.add(mat2);
+  g.position.set(x,0,z);
+  room.add(g);
+  var stationLight = new THREE.SpotLight(0xbfe8ff, 3.2, 3.5, Math.PI/6, 0.5, 1.5);
+  stationLight.position.set(x, 2.3, z+0.3);
+  stationLight.target.position.set(x,1,z);
+  room.add(stationLight); room.add(stationLight.target);
+}
+buildWaterStation(7.12, -4.6);
+
+function buildBreakCorner(x,z,rotY){
   var g = new THREE.Group();
   var cab = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.8,0.55), new THREE.MeshStandardMaterial({color:0x35291d, roughness:0.5}));
   cab.position.y = 0.4; cab.castShadow = true; cab.receiveShadow = true;
@@ -390,19 +628,15 @@ function buildRobot(accent, phase){
     handle.position.set(dx,0.4,0.28);
     g.add(handle);
   });
-
   var seam = new THREE.Mesh(new THREE.BoxGeometry(0.01,0.78,0.56), matJoint);
   seam.position.set(0,0.4,0);
   g.add(seam);
-
   var top = new THREE.Mesh(new THREE.BoxGeometry(1.38,0.05,0.62), new THREE.MeshStandardMaterial({color:0xe8e4da, roughness:0.25}));
   top.position.y = 0.825; top.castShadow = true; top.receiveShadow = true;
   g.add(top);
-
   var splash = new THREE.Mesh(new THREE.BoxGeometry(1.38,0.35,0.03), new THREE.MeshStandardMaterial({color:0xd8d2c4, roughness:0.4}));
   splash.position.set(0,1.02,-0.29);
   g.add(splash);
-
   var upper = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.5,0.32), new THREE.MeshStandardMaterial({color:0x35291d, roughness:0.5}));
   upper.position.set(0,1.9,-0.14); upper.castShadow = true;
   g.add(upper);
@@ -411,7 +645,6 @@ function buildRobot(accent, phase){
     h2.position.set(dx,1.9,0.03);
     g.add(h2);
   });
-
   var rail = new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.9,8), matJoint);
   rail.rotation.z = Math.PI/2; rail.position.set(0,1.6,-0.1);
   g.add(rail);
@@ -423,19 +656,15 @@ function buildRobot(accent, phase){
     mugBody.position.set(m[0],1.55,-0.1);
     g.add(mugBody);
   });
-
   var machBase = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.4,0.3), new THREE.MeshStandardMaterial({color:0x16171b, roughness:0.3, metalness:0.55}));
   machBase.position.set(-0.42,1.025,0.05); machBase.castShadow = true;
   g.add(machBase);
-
   var tank = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.3,0.2), new THREE.MeshStandardMaterial({color:0x9fd8ea, transparent:true, opacity:0.55, roughness:0.15}));
   tank.position.set(-0.6,1.005,0.05);
   g.add(tank);
-
   var spout = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.08,8), matJoint);
   spout.position.set(-0.42,0.845,0.16);
   g.add(spout);
-
   var machLedMat = new THREE.MeshStandardMaterial({color:0xff6f91, emissive:0xff6f91, emissiveIntensity:1.2});
   var mLed = new THREE.Mesh(new THREE.CircleGeometry(0.014,8), machLedMat);
   mLed.position.set(-0.42,1.185,0.151);
@@ -482,12 +711,10 @@ function buildRobot(accent, phase){
   var shade = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.14,16,1,true), new THREE.MeshStandardMaterial({color:0x201a14, roughness:0.4, side:THREE.DoubleSide}));
   shade.position.set(0.15,2.15,0.25); shade.rotation.x = Math.PI;
   g.add(shade);
-
-  var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.04,10,8), new THREE.MeshStandardMaterial({color:0x443322, emissive:0x332211, emissiveIntensity:0.25}));
+  var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.04,10,8), new THREE.MeshStandardMaterial({color:0xffe3b0, emissive:0xffcf80, emissiveIntensity:1.4}));
   bulb.position.set(0.15,2.1,0.25);
   g.add(bulb);
-
-  var pendantLight = new THREE.PointLight(0xffcf8a, 0.3, 3.2, 2);
+  var pendantLight = new THREE.PointLight(0xffcf8a, 2.2, 3.2, 2);
   pendantLight.position.set(0.15,2.1,0.25);
   g.add(pendantLight);
   function stool(sx,sz){
@@ -515,152 +742,53 @@ function buildRobot(accent, phase){
 }
 var coffeeLed = buildBreakCorner(7.0, -3.3, -Math.PI/2);
 
-  /* "zzz" icon for the 'sleepingmode' mode — child of the top-level (unrotated) group
-     so its world position can be placed directly above the head regardless of pose */
-  var zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map:zzzTex.texture, transparent:true, depthWrite:false, opacity:0 }));
-  zzz.scale.set(0.3,0.3,1);
-  zzz.visible = false;
-  g.add(zzz);
-
-  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz };
+function buildTrashBin(x,z){
+  var bin = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.09,0.28,12), new THREE.MeshStandardMaterial({color:0x2a2d33, roughness:0.5, metalness:0.3}));
+  bin.position.set(x,0.14,z); bin.castShadow = true;
+  room.add(bin);
 }
+positions.forEach(function(p){ buildTrashBin(p[0]-0.55, p[1]-0.62); });
+buildTrashBin(6.55, -4.15);
 
-/* ---------- station floor outline (rectangular LED strip, floor stays as-is) ---------- */
-function buildPlatform(x, z){
+function buildWhiteboard(x,y,z,rotY){
   var g = new THREE.Group();
-  var PW = 2.8, PD = 2.3, rimT = 0.05, rimY = 0.012;
-  /* own material per station (not the shared default) so one station's LED can turn red without affecting the others */
-  var rimMat = matPlatformRim.clone();
-  [
-    { w:PW, d:rimT, x:0, z: PD/2 },
-    { w:PW, d:rimT, x:0, z:-PD/2 },
-    { w:rimT, d:PD, x: PW/2, z:0 },
-    { w:rimT, d:PD, x:-PW/2, z:0 }
-  ].forEach(function(r){
-    var rim = new THREE.Mesh(new THREE.BoxGeometry(r.w, 0.01, r.d), rimMat);
-    rim.position.set(r.x, rimY, r.z);
-    g.add(rim);
-  });
-  g.position.set(x, 0, z);
-  room.add(g);
-  return { PH:0, material:rimMat };
-}
-
-/* ---------- assemble desks ---------- */
-var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081, 0xc77dff, 0xff9f4a];
-var positions = [ [-3.6,-2.0], [3.6,-2.0], [-3.6,1.9], [3.6,1.9], [0,-2.0], [0,1.9] ];
-
-/* ---------- robot mode assignment ----------
-   Set each robot's mode here — order matches the desks in `positions` above
-   (robo1 = first desk, robo2 = second desk, ...).
-   Available modes: 'workingmode' (typing + coffee break), 'idlemode' (idle, sitting still),
-   'sleepingmode' (head resting on the desk), 'errormode' (malfunctioning).
-   To add a new mode: write a function next to modeWorking/modeIdle below
-   (search for "robot behavior modes") and list it in ROBOT_MODE_HANDLERS. */
-var robo1 = 'idlemode';
-var robo2 = 'workingmode';
-var robo3 = 'sleepingmode';
-var robo4 = 'errormode';
-var robo5 = 'workingmode';
-var robo6 = 'workingmode';
-var ROBOT_MODES = [robo1, robo2, robo3, robo4, robo5, robo6];
-
-var robots = [];
-var desks = [];
-
-positions.forEach(function(p, i){
-  var platformZ = p[1] - 0.2;
-  var platformObj = buildPlatform(p[0], platformZ);
-  var PH = platformObj.PH;
-
-  var deskObj = buildDesk(p[0] > 0);
-  deskObj.group.position.set(p[0], PH, p[1]);
-  deskObj.group.rotation.y = Math.PI; /* mirrors monitor/keyboard so the robot can sit facing us */
-  room.add(deskObj.group);
-  desks.push(deskObj);
-
-  var chair = buildChair();
-  chair.position.set(p[0], PH, p[1] - 0.62);
-  room.add(chair);
-
-  var robotObj = buildRobot(accents[i], i*1.9 + i);
-  robotObj.group.position.set(p[0], PH, p[1] - 0.5);
-  robotObj.ledMat = platformObj.material;
-  robotObj.mode = ROBOT_MODES[i] || 'workingmode';
-  /* no extra rotation: the robot's built-in forward direction now faces the camera */
-  room.add(robotObj.group);
-
-  /* coffee-drinking behaviour: pick the arm on the same side as this desk's cup */
-  var drinkSide = (p[0] > 0) ? -1 : 1; /* matches mirrorCup logic in buildDesk */
-  robotObj.drinkArm = (drinkSide === -1) ? robotObj.armL : robotObj.armR;
-  robotObj.drinkSide = drinkSide;
-  robotObj.cup = deskObj.cup;
-  robotObj.deskStain = deskObj.deskStain;
-  robotObj.deskDrip = deskObj.deskDrip;
-  robotObj.deskGroup = deskObj.group;
-  robotObj.cupBasePos = deskObj.cup.position.clone();
-  robotObj.cupBaseRot = deskObj.cup.rotation.clone();
-  robotObj.drinkElbow = robotObj.drinkArm.elbowGroup;
-  deskObj.group.updateMatrixWorld(true); /* localToWorld needs an up-to-date matrix, unlike getWorldPosition */
-  robotObj.cupWorldRest = deskObj.group.localToWorld(deskObj.cup.position.clone());
-
-  /* floor puddle for the 'errormode' mode, placed under where the desk drip lands (open floor beside the desk) */
-  var puddleEdgeSign = (p[0] > 0) ? 1 : -1;
-  var puddleSpot = deskObj.group.localToWorld(new THREE.Vector3(puddleEdgeSign*1.18, -PH, 0.32));
-  var floorPuddle = new THREE.Mesh(new THREE.CircleGeometry(0.22, 20), matSpill);
-  floorPuddle.rotation.x = -Math.PI/2;
-  floorPuddle.position.set(puddleSpot.x, 0.012, puddleSpot.z);
-  floorPuddle.visible = false;
-  room.add(floorPuddle);
-  robotObj.floorPuddle = floorPuddle;
-
-  robotObj.drinking = false;
-  robotObj.drinkStart = 0;
-  robotObj.drinkT = 0;
-  robotObj.nextDrink = 4 + i*4 + Math.random()*5; /* staggered first sip */
-
-  /* how far the robot needs to lean in so its arm can actually reach the cup */
-  (function(){
-    var shoulderRest = robotObj.drinkArm.getWorldPosition(new THREE.Vector3());
-    var toCup = robotObj.cupWorldRest.clone().sub(shoulderRest);
-    var horiz = new THREE.Vector3(toCup.x, 0, toCup.z);
-    var horizLen = horiz.length();
-    var leanDist = Math.min(Math.max(0, toCup.length() - 0.42), horizLen*0.6, 0.3);
-    robotObj.reachLean = horizLen > 0.01 ? horiz.normalize().multiplyScalar(leanDist) : new THREE.Vector3();
-  })();
-
-  robots.push(robotObj);
-
-  var lamp = new THREE.SpotLight(0xffb268, 6, 4.5, Math.PI/5, 0.5, 1.6);
-  lamp.position.set(p[0] + (i%2===0?-0.6:0.6), 2.4, p[1]-0.2);
-  lamp.target = deskObj.group;
-  lamp.castShadow = (i === 0);
-  if (lamp.castShadow){ lamp.shadow.mapSize.set(512,512); lamp.shadow.bias = -0.002; }
-  room.add(lamp);
-  room.add(lamp.target);
-  robotObj.lamp = lamp;
-});
-
-/* small decor: a plant near back wall */
-function buildPlant(x,z){
-  var g = new THREE.Group();
-  var pot = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.12,0.22,12), matPlantPot);
-  pot.position.y = 0.11; pot.castShadow = true;
-  g.add(pot);
-  for (var i=0;i<7;i++){
-    var leaf = new THREE.Mesh(new THREE.ConeGeometry(0.05,0.4,6), matLeaf);
-    var a = (i/7)*Math.PI*2;
-    leaf.position.set(Math.cos(a)*0.07, 0.4, Math.sin(a)*0.07);
-    leaf.rotation.z = Math.cos(a)*0.4; leaf.rotation.x = Math.sin(a)*0.4;
-    leaf.castShadow = true;
-    g.add(leaf);
-  }
-  g.position.set(x,0,z);
+  var frame = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.9,0.04), new THREE.MeshStandardMaterial({color:0xd8d8d2, roughness:0.35}));
+  g.add(frame);
+  var tex = makeCanvasTexture(function(ctx,w,h){
+    ctx.fillStyle = '#f4f4f0'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle = 'rgba(60,110,200,0.7)'; ctx.lineWidth = 3;
+    ctx.strokeRect(20,20,90,50); ctx.strokeRect(140,20,90,50);
+    ctx.beginPath(); ctx.moveTo(110,45); ctx.lineTo(140,45); ctx.stroke();
+    ctx.fillStyle = 'rgba(210,90,60,0.75)';
+    ctx.fillRect(30,110,60,10); ctx.fillRect(30,130,100,10); ctx.fillRect(30,150,40,10);
+  },256,178);
+  var mat = new THREE.MeshStandardMaterial({map:tex.texture, roughness:0.4});
+  var board = new THREE.Mesh(new THREE.PlaneGeometry(1.2,0.82), mat);
+  board.position.z = 0.022;
+  g.add(board);
+  g.position.set(x,y,z); g.rotation.y = rotY||0;
   room.add(g);
 }
-// buildPlant(-6.8, -1.5);
-// buildPlant(6.8, -1.5);
+buildWhiteboard(-7.44, 2.3, -1.6, Math.PI/2);
 
+function buildWallClock(x,y,z,rotY){
+  var g = new THREE.Group();
+  var face = new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.04,24), new THREE.MeshStandardMaterial({color:0xf2f0ea, roughness:0.4}));
+  face.rotation.x = Math.PI/2;
+  g.add(face);
+  var rim = new THREE.Mesh(new THREE.TorusGeometry(0.26,0.015,8,24), matJoint);
+  rim.rotation.x = Math.PI/2;
+  g.add(rim);
+  var hourHand = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.12,0.01), matJoint);
+  hourHand.position.set(0,0.05,0.025); hourHand.rotation.z = -0.6;
+  g.add(hourHand);
+  var minHand = new THREE.Mesh(new THREE.BoxGeometry(0.015,0.18,0.01), matJoint);
+  minHand.position.set(0,0.06,0.03); minHand.rotation.z = 1.1;
+  g.add(minHand);
+  g.position.set(x,y,z); g.rotation.y = rotY||0;
+  room.add(g);
+}
+buildWallClock(0, 4.62, -6.35, 0);
 
 /* ---------- fixed supervisor overview camera ---------- */
 /* Keeps all 4 desks in frame at once, like a manager watching the room.
@@ -696,282 +824,36 @@ function updateCamera(t){
 /* ---------- animation loop ---------- */
 var clock = new THREE.Clock();
 var frame = 0;
-var __drinkHeadWorld = new THREE.Vector3();
-var __drinkLocalTarget = new THREE.Vector3();
-var __drinkHandTarget = new THREE.Vector3();
-var __drinkShoulderWorld = new THREE.Vector3();
-var __drinkToTarget = new THREE.Vector3();
-var __drinkV2 = new THREE.Vector3();
-var __drinkHandLocal = new THREE.Vector3();
-var __drinkRestQuat = new THREE.Quaternion();
-var __drinkAimQuat = new THREE.Quaternion();
-var __xAxis = new THREE.Vector3(1,0,0);
-var __zzzHeadWorld = new THREE.Vector3();
-
-/* simple analytic 2-bone arm IK so the hand actually arrives at the cup, then at the mouth */
-var IK_L1 = 0.24;
-var IK_V2_0 = new THREE.Vector3(0, -0.17, 0.23);
-var IK_L2 = IK_V2_0.length();
-var IK_V1_DIR = new THREE.Vector3(0, -1, 0);
-var IK_BASE_ANGLE = Math.acos( IK_V1_DIR.dot(IK_V2_0.clone().normalize()) );
-var IK_MAX = IK_L1 + IK_L2, IK_MIN = Math.abs(IK_L1 - IK_L2);
-
-/* aims one shoulder+elbow so the hand lands exactly on targetWorld (full snap, no blending) */
-function ikAimArmAt(shoulderGroup, targetWorld){
-  shoulderGroup.getWorldPosition(__drinkShoulderWorld);
-  __drinkToTarget.copy(targetWorld).sub(__drinkShoulderWorld);
-  var D = THREE.MathUtils.clamp(__drinkToTarget.length(), IK_MIN, IK_MAX);
-  __drinkToTarget.normalize();
-
-  var cosAngle = THREE.MathUtils.clamp((D*D - IK_L1*IK_L1 - IK_L2*IK_L2) / (2*IK_L1*IK_L2), -1, 1);
-  var delta = IK_BASE_ANGLE - Math.acos(cosAngle);
-  shoulderGroup.elbowGroup.rotation.x = delta;
-
-  __drinkV2.copy(IK_V2_0).applyAxisAngle(__xAxis, delta);
-  __drinkHandLocal.copy(IK_V1_DIR).multiplyScalar(IK_L1).add(__drinkV2).normalize();
-  __drinkAimQuat.setFromUnitVectors(__drinkHandLocal, __drinkToTarget);
-  shoulderGroup.quaternion.copy(__drinkAimQuat);
-}
-
-/* coffee-sip timeline: reach for the cup -> lift it with the cup -> hold -> lower together -> release */
-var DRINK_DURATION = 3.1;
-var DRINK_T1 = 0.177, DRINK_T2 = 0.387, DRINK_T3 = 0.613, DRINK_T4 = 0.823;
-function smoothstep01(x){ x = x<0?0:(x>1?1:x); return x*x*(3-2*x); }
-function drinkPhaseAmounts(dp){
-  if (dp < DRINK_T1) return { reach: smoothstep01(dp/DRINK_T1), lift: 0 };
-  if (dp < DRINK_T2) return { reach: 1, lift: smoothstep01((dp-DRINK_T1)/(DRINK_T2-DRINK_T1)) };
-  if (dp < DRINK_T3) return { reach: 1, lift: 1 };
-  if (dp < DRINK_T4) return { reach: 1, lift: 1 - smoothstep01((dp-DRINK_T3)/(DRINK_T4-DRINK_T3)) };
-  return { reach: 1 - smoothstep01((dp-DRINK_T4)/(1-DRINK_T4)), lift: 0 };
-}
-/* ---------- robot behavior modes ----------
-   Each mode is a function(r, t): r is the robot object, t is the elapsed clock time.
-   It's responsible for posing that one robot for the current frame.
-   To add a new mode: write a function here, then list it in ROBOT_MODE_HANDLERS below.
-   To use it: set the matching robo1..robo6 variable (near `positions`) to its name. */
-
-var LAMP_COLOR_NORMAL = 0xffb268, LAMP_COLOR_ALERT = 0xff1111;
-var LED_COLOR_NORMAL = 0xffffff, LED_COLOR_ALERT = 0xff1111, LED_COLOR_SLEEP = 0x080a0e;
-
-function modeWorking(r, t){
-  var ph = r.phase;
-  r.zzz.visible = false;
-  r.lamp.visible = true;
-  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
-  r.ledMat.color.setHex(LED_COLOR_NORMAL);
-  r.ledMat.emissive.setHex(LED_COLOR_NORMAL);
-  r.deskStain.visible = false;
-  r.deskDrip.visible = false;
-  r.floorPuddle.visible = false;
-
-  /* occasional, gentle, staggered coffee break: arm reaches the cup first, then lifts it, holds, lowers, releases */
-  if (!r.drinking && t >= r.nextDrink){ r.drinking = true; r.drinkStart = t; }
-  var reachAmt = 0, liftAmt = 0;
-  if (r.drinking){
-    var dp = (t - r.drinkStart) / DRINK_DURATION;
-    if (dp >= 1){
-      r.drinking = false;
-      r.nextDrink = t + 16 + Math.random()*18; /* spaced out, different per robot */
-    } else {
-      var amt = drinkPhaseAmounts(dp);
-      reachAmt = amt.reach; liftAmt = amt.lift;
-    }
-  }
-  r.drinkT = liftAmt;
-
-  r.hips.position.y = 0.85 + Math.sin(t*1.1+ph)*0.012;
-  r.hips.position.x = r.reachLean.x * reachAmt;
-  r.hips.position.z = r.reachLean.z * reachAmt;
-
-  var typeCycle = Math.sin(t*3.4+ph)*0.16 + Math.sin(t*7.1+ph*1.3)*0.05;
-  r.armL.rotation.x = -0.55 + typeCycle;
-  r.armR.rotation.x = -0.55 - typeCycle*0.8;
-  r.armL.rotation.z = 0;
-  r.armR.rotation.z = 0;
-  r.armL.elbowGroup.rotation.x = 0;
-  r.armR.elbowGroup.rotation.x = 0;
-  var yaw = Math.sin(t*0.16+ph)*0.28 + Math.sin(t*0.05+ph*2)*0.12;
-  var pitch = -0.08 + Math.sin(t*0.9+ph)*0.02;
-  r.headPivot.rotation.y = yaw;
-  r.headPivot.rotation.x = pitch;
-  r.chestLight.material.emissiveIntensity = 0.85 + Math.sin(t*2.2+ph)*0.4;
-
-  if (reachAmt > 0.001){
-    r.headPivot.rotation.x += 0.16 * liftAmt;
-    r.headPivot.rotation.y *= (1 - 0.6*liftAmt);
-
-    /* target the hand travels to: resting on the cup, then blending up toward the mouth */
-    r.headPivot.getWorldPosition(__drinkHeadWorld);
-    __drinkHeadWorld.y -= 0.05;
-    __drinkHeadWorld.z += 0.09;
-    __drinkHeadWorld.x += r.drinkSide * 0.04;
-    __drinkHandTarget.copy(r.cupWorldRest).lerp(__drinkHeadWorld, liftAmt);
-
-    /* 2-bone IK: solve elbow bend for distance, then aim the shoulder so the hand lands exactly on target */
-    r.drinkArm.getWorldPosition(__drinkShoulderWorld);
-    __drinkToTarget.copy(__drinkHandTarget).sub(__drinkShoulderWorld);
-    var D = THREE.MathUtils.clamp(__drinkToTarget.length(), IK_MIN, IK_MAX);
-    __drinkToTarget.normalize();
-
-    var cosAngle = THREE.MathUtils.clamp((D*D - IK_L1*IK_L1 - IK_L2*IK_L2) / (2*IK_L1*IK_L2), -1, 1);
-    var neededAngle = Math.acos(cosAngle);
-    var delta = IK_BASE_ANGLE - neededAngle;
-    r.drinkElbow.rotation.x = delta * reachAmt;
-
-    __drinkV2.copy(IK_V2_0).applyAxisAngle(__xAxis, delta);
-    __drinkHandLocal.copy(IK_V1_DIR).multiplyScalar(IK_L1).add(__drinkV2).normalize();
-
-    __drinkRestQuat.copy(r.drinkArm.quaternion);
-    __drinkAimQuat.setFromUnitVectors(__drinkHandLocal, __drinkToTarget);
-    r.drinkArm.quaternion.copy(__drinkRestQuat).slerp(__drinkAimQuat, reachAmt);
-
-    /* the cup rides exactly where the hand is heading */
-    r.deskGroup.worldToLocal(__drinkLocalTarget.copy(__drinkHandTarget));
-    r.cup.position.lerpVectors(r.cupBasePos, __drinkLocalTarget, liftAmt);
-    r.cup.rotation.z = r.cupBaseRot.z - r.drinkSide * 0.6 * liftAmt;
-    r.cup.rotation.x = r.cupBaseRot.x - 0.45 * liftAmt;
-  } else {
-    r.cup.position.copy(r.cupBasePos);
-    r.cup.rotation.z = r.cupBaseRot.z;
-    r.cup.rotation.x = r.cupBaseRot.x;
-  }
-}
-
-function modeIdle(r, t){
-  /* idle: sitting still at the desk, no typing, no coffee — just a faint breathing bob */
-  var ph = r.phase;
-  r.zzz.visible = false;
-  r.lamp.visible = true;
-  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
-  r.ledMat.color.setHex(LED_COLOR_NORMAL);
-  r.ledMat.emissive.setHex(LED_COLOR_NORMAL);
-  r.deskStain.visible = false;
-  r.deskDrip.visible = false;
-  r.floorPuddle.visible = false;
-  r.hips.position.y = 0.85 + Math.sin(t*0.7+ph)*0.008;
-  r.hips.position.x = 0;
-  r.hips.position.z = 0;
-  r.armL.rotation.set(-0.55, 0, 0);
-  r.armR.rotation.set(-0.55, 0, 0);
-  r.armL.elbowGroup.rotation.x = 0;
-  r.armR.elbowGroup.rotation.x = 0;
-  r.headPivot.rotation.set(-0.08, 0, 0);
-  r.chestLight.material.emissiveIntensity = 0.85 + Math.sin(t*1.1+ph)*0.15;
-  r.cup.position.copy(r.cupBasePos);
-  r.cup.rotation.copy(r.cupBaseRot);
-}
-
-function modeSleeping(r, t){
-  /* asleep: bowed forward at the hips until the head rests on the desk, plus a "zzz" drifting up */
-  var ph = r.phase;
-  r.lamp.visible = false;
-  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
-  r.ledMat.color.setHex(LED_COLOR_SLEEP);
-  r.ledMat.emissive.setHex(LED_COLOR_SLEEP);
-  r.deskStain.visible = false;
-  r.deskDrip.visible = false;
-  r.floorPuddle.visible = false;
-  var BOW = 1.42; /* radians — forward bow so the head reaches desk height */
-
-  r.hips.rotation.x = BOW + Math.sin(t*0.5+ph)*0.012; /* tiny breathing sway */
-  r.hips.position.y = 0.82 + Math.sin(t*0.5+ph)*0.005;
-  r.hips.position.x = 0;
-  r.hips.position.z = -0.2; /* the forward bow alone overshoots past the monitor; pull back so the head lands in the open desk space */
-
-  r.armL.rotation.set(0,0,0);
-  r.armR.rotation.set(0,0,0);
-  r.armL.elbowGroup.rotation.x = 0;
-  r.armR.elbowGroup.rotation.x = 0;
-  r.headPivot.rotation.set(0,0,0);
-
-  r.chestLight.material.emissiveIntensity = 0.25 + Math.sin(t*0.5+ph)*0.08; /* dim, slow pulse: power-save look */
-
-  r.cup.position.copy(r.cupBasePos);
-  r.cup.rotation.copy(r.cupBaseRot);
-
-  /* zzz: loops upward from the head, fading in then out, resetting to start over */
-  r.headPivot.getWorldPosition(__zzzHeadWorld);
-  var cyc = (t*0.35 + ph*0.27) % 1;
-  var rise = cyc * 1.2;
-  var fade = Math.sin(cyc * Math.PI);
-  r.zzz.visible = true;
-  r.zzz.position.set(
-    __zzzHeadWorld.x - r.group.position.x + 0.15,
-    __zzzHeadWorld.y - r.group.position.y + 0.1 + rise,
-    __zzzHeadWorld.z - r.group.position.z
-  );
-  r.zzz.material.opacity = 0.9 * fade;
-  var s = 0.26 + cyc*0.14;
-  r.zzz.scale.set(s, s, 1);
-}
-
-function modeError(r, t){
-  /* malfunctioning: both hands clamped to the head, jittery/glitchy movement,
-     red-alert lamp + floor LED, and the coffee cup knocked over with coffee
-     spilled on the desk and floor */
-  var ph = r.phase;
-  r.zzz.visible = false;
-  r.lamp.visible = true;
-  r.lamp.color.setHex(LAMP_COLOR_ALERT);
-  r.ledMat.color.setHex(LED_COLOR_ALERT);
-  r.ledMat.emissive.setHex(LED_COLOR_ALERT);
-
-  r.hips.rotation.x = 0;
-  r.hips.position.y = 0.85 + Math.sin(t*9+ph)*0.01 + Math.sin(t*23+ph*1.7)*0.005;
-  r.hips.position.x = Math.sin(t*13+ph)*0.012;
-  r.hips.position.z = 0;
-
-  /* both hands clamp onto the sides of the head, shaking — same 2-bone IK as the coffee
-     reach, aimed at a point on the head instead of the cup, so the hands actually land there */
-  r.headPivot.getWorldPosition(__drinkHeadWorld);
-  __drinkHeadWorld.x += 0.15 + Math.sin(t*22+ph)*0.015;
-  __drinkHeadWorld.y += 0.02 + Math.sin(t*17+ph)*0.01;
-  __drinkHeadWorld.z += 0.06;
-  ikAimArmAt(r.armR, __drinkHeadWorld);
-
-  r.headPivot.getWorldPosition(__drinkHeadWorld);
-  __drinkHeadWorld.x -= 0.15 + Math.sin(t*20+ph+1.3)*0.015;
-  __drinkHeadWorld.y += 0.02 + Math.sin(t*15+ph+0.7)*0.01;
-  __drinkHeadWorld.z += 0.06;
-  ikAimArmAt(r.armL, __drinkHeadWorld);
-
-  /* glitchy, shaky head */
-  r.headPivot.rotation.y = Math.sin(t*15+ph)*0.35 + Math.sin(t*37+ph)*0.12;
-  r.headPivot.rotation.x = -0.05 + Math.sin(t*18+ph)*0.15;
-
-  /* flickering warning pulse instead of the calm idle glow */
-  r.chestLight.material.color.set(0xff2222);
-  r.chestLight.material.emissive.set(0xff0000);
-  r.chestLight.material.emissiveIntensity = Math.random() > 0.35 ? 1.3 : 0.2;
-
-  /* the cup toppled over, coffee spilled across the desk and dripping onto the floor */
-  r.cup.position.set(r.cupBasePos.x + 0.05, 0.735, r.cupBasePos.z - 0.02);
-  r.cup.rotation.set(0, 0, 1.65);
-  r.deskStain.visible = true;
-  r.deskDrip.visible = true;
-  r.floorPuddle.visible = true;
-}
-
-var ROBOT_MODE_HANDLERS = {
-  workingmode: modeWorking,
-  idlemode: modeIdle,
-  sleepingmode: modeSleeping,
-  errormode: modeError
-};
-
 function animate(){
   requestAnimationFrame(animate);
   var t = clock.getElapsedTime();
   frame++;
 
   robots.forEach(function(r){
-    var handler = ROBOT_MODE_HANDLERS[r.mode] || modeWorking;
-    handler(r, t);
+    var ph = r.phase;
+    r.hips.position.y = 0.85 + Math.sin(t*1.1+ph)*0.012;
+    var typeCycle = Math.sin(t*3.4+ph)*0.16 + Math.sin(t*7.1+ph*1.3)*0.05;
+    r.armL.rotation.x = -0.55 + typeCycle;
+    r.armR.rotation.x = -0.55 - typeCycle*0.8;
+    var yaw = Math.sin(t*0.16+ph)*0.28 + Math.sin(t*0.05+ph*2)*0.12;
+    var pitch = -0.08 + Math.sin(t*0.9+ph)*0.02;
+    r.headPivot.rotation.y = yaw;
+    r.headPivot.rotation.x = pitch;
+    r.chestLight.material.emissiveIntensity = 0.85 + Math.sin(t*2.2+ph)*0.4;
   });
 
   if (frame % 20 === 0){
     desks.forEach(function(d,i){ d.redrawScreen(t, i*1.3); });
+    wallScreens.forEach(function(s,i){ s.redraw(t, i*2.1+1); });
   }
+
+  rackLeds.forEach(function(l){
+    l.mesh.material.emissiveIntensity = 0.35 + Math.abs(Math.sin(t*l.speed+l.phase))*1.1;
+  });
+  holoPillar.rotation.y = t*0.5;
+  holoPillar.rotation.x = Math.sin(t*0.5)*0.15;
+  dockRing.material.emissiveIntensity = 0.9 + Math.sin(t*1.6)*0.5;
+  coffeeLed.emissiveIntensity = 0.8 + Math.sin(t*3.0)*0.5;
 
   if (window.__dust){
     window.__dust.rotation.y = t*0.01;
