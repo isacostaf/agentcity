@@ -13,6 +13,50 @@
   #caption { position:absolute; left:22px; bottom:20px; color:rgba(255,255,255,0.55); font-size:11px; letter-spacing:2px; text-transform:uppercase; z-index:5; font-weight:500; pointer-events:none; text-shadow:0 1px 4px rgba(0,0,0,0.6); opacity:0; transition:opacity 1.5s ease; }
   #caption b { color:rgba(255,255,255,0.85); }
   #vignette { position:absolute; inset:0; pointer-events:none; z-index:4; box-shadow: inset 0 0 180px 40px rgba(0,0,0,0.55); }
+
+  /* hint that robots are clickable */
+  #wrap.hoverbot canvas { cursor:pointer; }
+
+  /* ---- side panel (opens when a robot is clicked) ---- */
+  #panel {
+    position:absolute; top:0; right:0; width:380px; max-width:88vw; height:100%;
+    background:rgba(12,15,20,0.82); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border-left:1px solid rgba(255,255,255,0.08); box-shadow:-16px 0 48px rgba(0,0,0,0.55);
+    color:#dfe7f0; z-index:20; transform:translateX(102%); transition:transform .42s cubic-bezier(.2,.8,.2,1);
+    display:flex; flex-direction:column; font-size:13px;
+  }
+  #panel.open { transform:translateX(0); }
+  #panelClose { position:absolute; top:12px; right:14px; width:30px; height:30px; border:none; border-radius:50%;
+    background:rgba(255,255,255,0.06); color:#cdd7e2; font-size:18px; line-height:1; cursor:pointer; z-index:2; }
+  #panelClose:hover { background:rgba(255,255,255,0.14); }
+  #panelBody { padding:26px 24px; overflow-y:auto; height:100%; box-sizing:border-box; }
+  #panelBody h1 { font-size:18px; margin:0 4px 2px 0; letter-spacing:.3px; color:#fff; padding-right:34px; }
+  #panelBody .sub { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#7f93a8; margin-bottom:14px; }
+  #panelBody a { color:#7fd8ff; text-decoration:none; word-break:break-all; }
+  #panelBody a:hover { text-decoration:underline; }
+  .badge { display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:20px;
+    font-size:11px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; margin-bottom:16px; }
+  .badge .dot { width:8px; height:8px; border-radius:50%; }
+  .badge.working { background:rgba(126,224,129,0.14); color:#8ff09a; } .badge.working .dot{ background:#7ee081; box-shadow:0 0 8px #7ee081; }
+  .badge.idle    { background:rgba(127,216,255,0.14); color:#9fe0ff; } .badge.idle .dot{ background:#59d6ff; box-shadow:0 0 8px #59d6ff; }
+  .badge.error   { background:rgba(255,90,90,0.16);  color:#ff8f8f; } .badge.error .dot{ background:#ff5a5a; box-shadow:0 0 8px #ff5a5a; }
+  .badge.sleep   { background:rgba(160,170,190,0.12); color:#b6c1d2; } .badge.sleep .dot{ background:#8b97ab; }
+  .badge.dev     { background:rgba(255,165,44,0.15);  color:#ffc670; } .badge.dev .dot{ background:#ffa52c; box-shadow:0 0 8px #ffa52c; }
+  .desc { color:#aab6c4; line-height:1.55; margin-bottom:18px; }
+  .card { background:rgba(255,255,255,0.035); border:1px solid rgba(255,255,255,0.06); border-radius:12px;
+    padding:13px 15px; margin-bottom:12px; }
+  .card .lbl { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:#7f93a8; margin-bottom:6px; }
+  .card .val { font-size:13px; line-height:1.5; color:#e6edf5; }
+  .sec-title { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#7f93a8; margin:22px 0 10px; }
+  .log { list-style:none; margin:0; padding:0; }
+  .log li { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
+  .log li:last-child { border-bottom:none; }
+  .log .ico { width:9px; height:9px; border-radius:50%; margin-top:5px; flex:0 0 9px; background:#59d6ff; }
+  .log .ico.ok { background:#7ee081; } .log .ico.err { background:#ff5a5a; }
+  .log .ico.run { background:#ffcf5c; } .log .ico.login { background:#c77dff; }
+  .log .txt { flex:1; }
+  .log .txt .t1 { color:#e6edf5; } .log .txt .t2 { color:#8697a8; font-size:11px; }
+  .empty { color:#6b7c8e; font-style:italic; padding:10px 0; }
 </style>
 </head>
 <body>
@@ -21,6 +65,10 @@
   <div id="vignette"></div>
   <div id="caption">Escritório <b>Setor 4</b> — visão do supervisor</div>
   <div id="loading"><div class="spin"></div><div>carregando a sala</div></div>
+  <div id="panel">
+    <button id="panelClose" title="fechar">&times;</button>
+    <div id="panelBody"></div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -101,6 +149,24 @@ var zzzTex = makeCanvasTexture(function(ctx,w,h){
   ctx.save(); ctx.translate(w*0.53,h*0.52); ctx.rotate(-0.2); ctx.font = 'bold 44px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
   ctx.save(); ctx.translate(w*0.8,h*0.22); ctx.rotate(-0.2); ctx.font = 'bold 58px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
 }, 160, 160);
+
+/* gear icon, used by the 'devmode' (in-development) robot mode */
+var gearTex = makeCanvasTexture(function(ctx,w,h){
+  ctx.clearRect(0,0,w,h);
+  ctx.translate(w/2,h/2);
+  ctx.fillStyle = 'rgba(255,190,90,0.96)';
+  var teeth = 8, rOut = w*0.42, rIn = w*0.31;
+  ctx.beginPath();
+  for (var i=0;i<teeth*2;i++){
+    var a = (i/(teeth*2))*Math.PI*2;
+    var r = (i%2===0) ? rOut : rIn;
+    ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath(); ctx.arc(0,0,w*0.14,0,Math.PI*2); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+}, 128, 128);
 
 /* ---------- materials ---------- */
 var matWall = new THREE.MeshStandardMaterial({ color:0x252a34, roughness:0.85, metalness:0.05 });
@@ -551,7 +617,13 @@ var coffeeLed = buildBreakCorner(7.0, -3.3, -Math.PI/2);
   zzz.visible = false;
   g.add(zzz);
 
-  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz };
+  /* gear icon for the 'devmode' (in-development) mode */
+  var gear = new THREE.Sprite(new THREE.SpriteMaterial({ map:gearTex.texture, transparent:true, depthWrite:false, opacity:0 }));
+  gear.scale.set(0.26,0.26,1);
+  gear.visible = false;
+  g.add(gear);
+
+  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz, gear:gear };
 }
 
 /* ---------- station floor outline (rectangular LED strip, floor stays as-is) ---------- */
@@ -579,20 +651,33 @@ function buildPlatform(x, z){
 var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081, 0xc77dff, 0xff9f4a];
 var positions = [ [-3.6,-2.0], [3.6,-2.0], [-3.6,1.9], [3.6,1.9], [0,-2.0], [0,1.9] ];
 
-/* ---------- robot mode assignment ----------
-   Set each robot's mode here — order matches the desks in `positions` above
-   (robo1 = first desk, robo2 = second desk, ...).
-   Available modes: 'workingmode' (typing + coffee break), 'idlemode' (idle, sitting still),
-   'sleepingmode' (head resting on the desk), 'errormode' (malfunctioning).
-   To add a new mode: write a function next to modeWorking/modeIdle below
-   (search for "robot behavior modes") and list it in ROBOT_MODE_HANDLERS. */
-var robo1 = 'idlemode';
-var robo2 = 'workingmode';
-var robo3 = 'sleepingmode';
-var robo4 = 'errormode';
-var robo5 = 'workingmode';
-var robo6 = 'workingmode';
-var ROBOT_MODES = [robo1, robo2, robo3, robo4, robo5, robo6];
+/* ---------- systems <-> robots ----------
+   Cada robô (na ordem das mesas em `positions`) representa um sistema real.
+   Esta config espelha lib/systems.js (backend). O modo de cada robô começa
+   a partir do `type` e passa a ser atualizado pelo polling de /api/state.
+     type 'running' -> 'idlemode' (disponível) até o backend dizer o contrário
+     type 'dev'     -> 'devmode'  (sempre, em desenvolvimento)
+     type 'paper'   -> 'sleepingmode' (sempre, só no papel) */
+var SYSTEMS = [
+  { slug:'radar-colegiados', name:'Radar Colegiados', type:'running', url:'https://radarcolegiados.vercel.app',
+    desc:'Busca no Diário Oficial por atos de interesse. CronJob diário de manhã e à noite.',
+    cronWindows:[['08:00','09:00'],['20:00','21:00']], hasLogin:false },
+  { slug:'push-deorg', name:'Push Deorg', type:'running', url:'https://pushdeorg.vercel.app',
+    desc:'Busca processos específicos no Diário Oficial por suas características. Possui login.',
+    cronWindows:[['08:00','09:00']], hasLogin:true },
+  { slug:'vigencia', name:'Vigência Colegiados', type:'running', url:'https://vigenciacolegiados.onrender.com',
+    desc:'Uma vez por mês verifica se os colegiados estão ativos no sistema do MDLegis.',
+    cronWindows:null, hasLogin:false },
+  { slug:'radar-remunerados', name:'Radar Colegiados Remunerados', type:'dev', url:null,
+    desc:'Em desenvolvimento. Versão do Radar voltada aos colegiados remunerados. Ainda não entrou em produção.',
+    hasLogin:false },
+  { slug:'futuro-1', name:'Estação reservada', type:'paper', url:null,
+    desc:'Espaço reservado para um sistema futuro. Este posto será ocupado em breve.', hasLogin:false },
+  { slug:'futuro-2', name:'Estação reservada', type:'paper', url:null,
+    desc:'Espaço reservado para um sistema futuro. Este posto será ocupado em breve.', hasLogin:false }
+];
+function typeToMode(t){ return t==='paper' ? 'sleepingmode' : (t==='dev' ? 'devmode' : 'idlemode'); }
+var ROBOT_MODES = SYSTEMS.map(function(s){ return typeToMode(s.type); });
 
 var robots = [];
 var desks = [];
@@ -616,6 +701,9 @@ positions.forEach(function(p, i){
   robotObj.group.position.set(p[0], PH, p[1] - 0.5);
   robotObj.ledMat = platformObj.material;
   robotObj.mode = ROBOT_MODES[i] || 'workingmode';
+  robotObj.system = SYSTEMS[i];
+  robotObj.systemSlug = SYSTEMS[i] ? SYSTEMS[i].slug : null;
+  robotObj.group.userData.systemSlug = robotObj.systemSlug; /* used by the click/raycast */
   /* no extra rotation: the robot's built-in forward direction now faces the camera */
   room.add(robotObj.group);
 
@@ -981,11 +1069,59 @@ function modeError(r, t){
   r.floorPuddle.visible = true;
 }
 
+function modeDev(r, t){
+  /* in development: robot tinkering on its own chest panel, amber "under maintenance"
+     glow, a gear icon spinning above the head */
+  var ph = r.phase;
+  var AMBER = 0xffa52c;
+  r.zzz.visible = false;
+  r.lamp.visible = true;
+  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
+  r.ledMat.color.setHex(AMBER);
+  r.ledMat.emissive.setHex(AMBER);
+  r.deskStain.visible = false;
+  r.deskDrip.visible = false;
+  r.floorPuddle.visible = false;
+
+  var tink = Math.sin(t*4 + ph) * 0.2;               /* fiddling motion */
+  r.hips.rotation.x = 0.12 + Math.sin(t*0.8+ph)*0.02; /* slight lean over the work */
+  r.hips.position.y = 0.85 + Math.sin(t*0.9+ph)*0.008;
+  r.hips.position.x = 0;
+  r.hips.position.z = 0;
+
+  r.armL.rotation.set(-1.05 + tink*0.3, 0, 0.16);
+  r.armR.rotation.set(-1.05 - tink*0.3, 0, -0.16);
+  r.armL.elbowGroup.rotation.x = -0.9 + tink;
+  r.armR.elbowGroup.rotation.x = -0.9 - tink;
+
+  r.headPivot.rotation.set(0.30, Math.sin(t*0.5+ph)*0.10, 0); /* looking down at the work */
+
+  r.chestLight.material.color.set(AMBER);
+  r.chestLight.material.emissive.set(AMBER);
+  r.chestLight.material.emissiveIntensity = 0.6 + Math.sin(t*3+ph)*0.4;
+
+  r.cup.position.copy(r.cupBasePos);
+  r.cup.rotation.copy(r.cupBaseRot);
+
+  /* gear icon spinning above the head */
+  r.headPivot.getWorldPosition(__zzzHeadWorld);
+  r.gear.visible = true;
+  r.gear.position.set(
+    __zzzHeadWorld.x - r.group.position.x,
+    __zzzHeadWorld.y - r.group.position.y + 0.34 + Math.sin(t*2+ph)*0.02,
+    __zzzHeadWorld.z - r.group.position.z
+  );
+  r.gear.material.rotation = t * 1.4;
+  r.gear.material.opacity = 0.92;
+  r.gear.scale.set(0.26, 0.26, 1);
+}
+
 var ROBOT_MODE_HANDLERS = {
   workingmode: modeWorking,
   idlemode: modeIdle,
   sleepingmode: modeSleeping,
-  errormode: modeError
+  errormode: modeError,
+  devmode: modeDev
 };
 
 function animate(){
@@ -994,6 +1130,7 @@ function animate(){
   frame++;
 
   robots.forEach(function(r){
+    if (r.gear) r.gear.visible = false; /* only modeDev turns it back on */
     var handler = ROBOT_MODE_HANDLERS[r.mode] || modeWorking;
     handler(r, t);
   });
@@ -1009,6 +1146,187 @@ function animate(){
   updateCamera(t);
   renderer.render(scene, camera);
 }
+
+/* ---------- live data: poll /api/state and update robot modes ---------- */
+var __state = null;          /* último payload de /api/state */
+var __openSlug = null;       /* sistema aberto na barra lateral, se houver */
+var robotsBySlug = {};
+robots.forEach(function(r){ if (r.systemSlug) robotsBySlug[r.systemSlug] = r; });
+
+function applyState(state){
+  __state = state;
+  if (!state || !state.systems) return;
+  state.systems.forEach(function(s){
+    var r = robotsBySlug[s.slug];
+    if (r && s.mode) r.mode = s.mode;
+  });
+  if (__openSlug) renderPanel(__openSlug); /* mantém a barra viva com dados frescos */
+}
+
+function pollState(){
+  fetch('api/state', { cache:'no-store' })
+    .then(function(res){ return res.json(); })
+    .then(applyState)
+    .catch(function(){ /* offline / rodando via file:// — mantém os modos iniciais */ });
+}
+
+/* ---------- side panel ---------- */
+var STATUS_META = {
+  workingmode:  { cls:'working', label:'Trabalhando' },
+  idlemode:     { cls:'idle',    label:'Disponível' },
+  errormode:    { cls:'error',   label:'Erro' },
+  sleepingmode: { cls:'sleep',   label:'Dormindo' },
+  devmode:      { cls:'dev',     label:'Em desenvolvimento' }
+};
+var EVENT_META = {
+  cron_start:   { ico:'run',   txt:'CronJob iniciado' },
+  cron_success: { ico:'ok',    txt:'CronJob concluído com sucesso — detalhes enviados por e-mail' },
+  cron_error:   { ico:'err',   txt:'Falha no CronJob' },
+  search:       { ico:'',      txt:'Pesquisa realizada' },
+  login:        { ico:'login', txt:'Login no sistema' },
+  used:         { ico:'',      txt:'Sistema utilizado' }
+};
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+  return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+
+function fmtClock(ts){
+  var d = new Date(ts);
+  return ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+}
+function fmtAgo(ts){
+  var s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60)    return 'agora há pouco';
+  if (s < 3600)  return 'há ' + Math.floor(s/60) + ' min';
+  if (s < 86400) return 'há ' + Math.floor(s/3600) + ' h';
+  return 'há ' + Math.floor(s/86400) + ' d';
+}
+
+/* usa dados do backend se existirem; senão cai na config estática de SYSTEMS */
+function systemData(slug){
+  if (__state && __state.systems){
+    for (var i=0;i<__state.systems.length;i++){
+      if (__state.systems[i].slug === slug) return __state.systems[i];
+    }
+  }
+  for (var j=0;j<SYSTEMS.length;j++){
+    if (SYSTEMS[j].slug === slug){
+      var s = SYSTEMS[j];
+      return { slug:s.slug, name:s.name, type:s.type, url:s.url, desc:s.desc,
+               hasLogin:s.hasLogin, cronWindows:s.cronWindows||null,
+               mode:typeToMode(s.type), health:null, lastCron:null, events:[] };
+    }
+  }
+  return null;
+}
+
+function renderPanel(slug){
+  var s = systemData(slug);
+  if (!s) return;
+  var meta = STATUS_META[s.mode] || STATUS_META.idlemode;
+  var h = '';
+
+  h += '<div class="sub">Estação ' + '</div>';
+  h += '<h1>' + esc(s.name) + '</h1>';
+  h += '<div class="badge ' + meta.cls + '"><span class="dot"></span>' + meta.label + '</div>';
+  h += '<div class="desc">' + esc(s.desc) + '</div>';
+
+  if (s.type === 'running'){
+    /* saúde do link */
+    var healthTxt = s.health === 'up' ? 'No ar' : (s.health === 'down' ? 'Fora do ar' : 'Verificando…');
+    h += '<div class="card"><div class="lbl">Disponibilidade</div><div class="val">' + healthTxt +
+         (s.url ? ' &middot; <a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.url) + '</a>' : '') +
+         '</div></div>';
+
+    /* cronjob */
+    if (s.cronWindows){
+      var win = s.cronWindows.map(function(w){ return w[0] + '–' + w[1]; }).join(' e ');
+      var cronVal;
+      if (s.lastCron && s.lastCron.status === 'success')
+        cronVal = '✅ Executado com sucesso ' + fmtAgo(s.lastCron.ts) + ' (' + fmtClock(s.lastCron.ts) + '). Detalhes enviados por e-mail.';
+      else if (s.lastCron && s.lastCron.status === 'error')
+        cronVal = '⛔ Falhou ' + fmtAgo(s.lastCron.ts) + ' (' + fmtClock(s.lastCron.ts) + ').';
+      else if (s.lastCron && s.lastCron.status === 'running')
+        cronVal = '⏳ Em execução…';
+      else
+        cronVal = 'Sem execução registrada nas últimas 24h.';
+      h += '<div class="card"><div class="lbl">CronJob &middot; ' + esc(win) + '</div><div class="val">' + cronVal + '</div></div>';
+    } else {
+      h += '<div class="card"><div class="lbl">Execução</div><div class="val">Uso manual (mensal), sob demanda.</div></div>';
+    }
+
+    /* registros das últimas 24h */
+    h += '<div class="sec-title">Registros (últimas 24h)</div>';
+    var evs = s.events || [];
+    if (!evs.length){
+      h += '<div class="empty">Nenhuma atividade nas últimas 24 horas.</div>';
+    } else {
+      h += '<ul class="log">';
+      evs.forEach(function(e){
+        var em = EVENT_META[e.type] || { ico:'', txt:e.type };
+        var line = em.txt;
+        if (e.type === 'login' && e.user) line += ' — ' + esc(e.user);
+        else if (e.detail) line += ' — ' + esc(e.detail);
+        h += '<li><span class="ico ' + em.ico + '"></span><span class="txt">' +
+             '<div class="t1">' + line + '</div>' +
+             '<div class="t2">' + fmtClock(e.ts) + ' &middot; ' + fmtAgo(e.ts) + '</div>' +
+             '</span></li>';
+      });
+      h += '</ul>';
+    }
+  } else if (s.type === 'dev'){
+    h += '<div class="card"><div class="lbl">Situação</div><div class="val">' +
+         'Este sistema está <b>em desenvolvimento</b> e ainda não entrou em produção. ' +
+         'O robô ficará em modo de manutenção até o lançamento.</div></div>';
+  } else { /* paper */
+    h += '<div class="card"><div class="lbl">Situação</div><div class="val">' +
+         'Este é um <b>posto reservado</b> para um sistema que ainda existe apenas no papel. ' +
+         'O espaço será ocupado futuramente — por enquanto o robô permanece dormindo.</div></div>';
+  }
+
+  document.getElementById('panelBody').innerHTML = h;
+}
+
+function openPanel(slug){
+  __openSlug = slug;
+  renderPanel(slug);
+  document.getElementById('panel').classList.add('open');
+}
+function closePanel(){
+  __openSlug = null;
+  document.getElementById('panel').classList.remove('open');
+}
+document.getElementById('panelClose').addEventListener('click', closePanel);
+window.addEventListener('keydown', function(e){ if (e.key === 'Escape') closePanel(); });
+
+/* ---------- raycast: click a robot to open its panel ---------- */
+var raycaster = new THREE.Raycaster();
+var ndc = new THREE.Vector2();
+var robotGroups = robots.map(function(r){ return r.group; });
+var wrapEl = document.getElementById('wrap');
+
+function pickSlug(clientX, clientY){
+  var rect = canvas.getBoundingClientRect();
+  ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  var hits = raycaster.intersectObjects(robotGroups, true);
+  if (!hits.length) return null;
+  var o = hits[0].object;
+  while (o && !(o.userData && o.userData.systemSlug)) o = o.parent;
+  return o ? o.userData.systemSlug : null;
+}
+canvas.addEventListener('click', function(ev){
+  var slug = pickSlug(ev.clientX, ev.clientY);
+  if (slug) openPanel(slug);
+});
+canvas.addEventListener('mousemove', function(ev){
+  wrapEl.classList.toggle('hoverbot', !!pickSlug(ev.clientX, ev.clientY));
+});
+
+/* start polling */
+pollState();
+setInterval(pollState, 30000);
 
 /* first paint */
 updateCamera(0);

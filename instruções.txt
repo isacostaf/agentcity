@@ -1,0 +1,211 @@
+================================================================================
+  AGENTCITY — O QUE VOCÊ PRECISA FAZER (passo a passo)
+================================================================================
+
+Eu já deixei o código pronto:
+  - index.html ............. dashboard 3D (clicar no robô abre a barra lateral;
+                             busca /api/state a cada 30s e troca o modo do robô)
+  - api/state.js ........... o dashboard lê daqui (status + registros 24h)
+  - api/event.js ........... os agentes reportam eventos aqui (webhook)
+  - lib/systems.js ......... config dos 6 sistemas (fonte da verdade do backend)
+  - lib/redis.js ........... cliente Upstash (via REST, sem dependências)
+  - instrumentation/agentcity.js ... helper para copiar dentro de cada agente
+
+O que SÓ VOCÊ pode fazer: criar as contas, colar as variáveis de ambiente,
+colar 2 a 4 linhas em cada agente e publicar. É isso que este arquivo cobre.
+
+Existem 3 PARTES:
+  A) Publicar o AgentCity (dashboard + backend) na Vercel + Upstash
+  B) Instrumentar os 3 agentes que estão em produção
+  C) Testar
+
+Slugs dos sistemas (use exatamente assim):
+  radar-colegiados | push-deorg | vigencia | radar-remunerados | futuro-1 | futuro-2
+
+
+================================================================================
+  PARTE A — PUBLICAR O AGENTCITY
+================================================================================
+
+A1) Subir o código para o GitHub
+    Este projeto já é um repositório git. No terminal, dentro da pasta:
+        git add .
+        git commit -m "dashboard de monitoramento (frontend + backend)"
+        git push
+    (Se ainda não houver um repositório remoto no GitHub, crie um repositório
+     vazio no github.com e siga as instruções que ele mostra para dar push.)
+
+A2) Criar o banco Upstash Redis (grátis) — guarda os eventos das últimas 24h
+    1. Acesse https://upstash.com e faça login (pode usar o GitHub).
+    2. "Create Database" -> tipo Redis -> região mais perto (ex.: São Paulo/us-east).
+    3. Aberto o banco, procure a seção "REST API". Copie estes dois valores:
+         UPSTASH_REDIS_REST_URL    (algo como https://xxxx.upstash.io)
+         UPSTASH_REDIS_REST_TOKEN  (um token longo)
+       Guarde os dois — vamos colar na Vercel no passo A4.
+
+A3) Criar o projeto na Vercel
+    1. Acesse https://vercel.com e faça login com o GitHub.
+    2. "Add New... -> Project" e importe o repositório do AgentCity.
+    3. Framework Preset: deixe "Other" (é HTML estático + funções em /api).
+       Não precisa configurar build. Clique em Deploy.
+    4. Ao terminar, você terá uma URL tipo: https://agentcity-xxxx.vercel.app
+       -> ANOTE essa URL, vamos usá-la na Parte B (é a AGENTCITY_URL).
+
+A4) Configurar as variáveis de ambiente do AgentCity na Vercel
+    No projeto da Vercel: Settings -> Environment Variables. Adicione 3:
+
+         UPSTASH_REDIS_REST_URL     = (o valor copiado do Upstash)
+         UPSTASH_REDIS_REST_TOKEN   = (o token copiado do Upstash)
+         AGENTCITY_SECRET           = (INVENTE uma senha forte e aleatória)
+
+    >>> IMPORTANTE: guarde o AGENTCITY_SECRET. Ele é o MESMO que vai nos 3
+        agentes na Parte B. É o que impede qualquer um de mandar eventos falsos.
+
+    Depois de salvar, faça um "Redeploy" (aba Deployments -> ... -> Redeploy)
+    para as variáveis entrarem em vigor.
+
+A5) Conferir
+    - Abra a URL do dashboard: deve carregar a sala 3D.
+    - Abra  https://SEU-AGENTCITY.vercel.app/api/state  -> deve devolver um JSON
+      com os 6 sistemas. "backend":"redis" confirma que o Upstash conectou
+      (se aparecer "memoryless", as env vars do Upstash não pegaram — revise A4).
+    - Clique nos robôs: a barra lateral abre. Radar/Push/Vigência aparecem como
+      "Disponível" (ou "Erro" se o link estiver fora do ar), o de desenvolvimento
+      como "Em desenvolvimento" e os dois reservados como "Dormindo".
+
+    Neste ponto o dashboard JÁ FUNCIONA e já monitora se os 3 links estão no ar.
+    A Parte B é o que faz aparecer cronjob, login e pesquisa.
+
+
+================================================================================
+  PARTE B — INSTRUMENTAR OS AGENTES (radar-colegiados, push-deorg, vigencia)
+================================================================================
+
+A ideia: cada agente manda um "aviso" (POST) para o AgentCity quando algo
+acontece. São poucas linhas. O helper já está pronto em
+instrumentation/agentcity.js — é só copiar e chamar.
+
+--------------------------------------------------------------------------------
+B0) PARA CADA UM DOS 3 AGENTES, faça estes 2 passos comuns:
+
+    (i) Copie o arquivo  instrumentation/agentcity.js  para dentro do projeto do
+        agente, por exemplo em  lib/agentcity.js.
+
+    (ii) Adicione 3 variáveis de ambiente NO PROJETO DO AGENTE:
+         (Radar e Push são na Vercel -> Settings -> Environment Variables;
+          Vigência é no Render -> Environment)
+
+         AGENTCITY_URL     = https://SEU-AGENTCITY.vercel.app   (a URL do passo A3)
+         AGENTCITY_SECRET  = (EXATAMENTE o mesmo segredo do passo A4)
+         AGENTCITY_SYSTEM  = (o slug do agente: veja abaixo)
+
+         - No Radar Colegiados: AGENTCITY_SYSTEM = radar-colegiados
+         - No Push Deorg:       AGENTCITY_SYSTEM = push-deorg
+         - Na Vigência:         AGENTCITY_SYSTEM = vigencia
+
+    Depois faça redeploy do agente para as variáveis valerem.
+
+    Obs.: se o projeto do agente usa ES Modules (import/export em vez de
+    require/module.exports), abra o lib/agentcity.js copiado e troque a última
+    linha "module.exports = {...}" por:
+        export default { cronStart, cronSuccess, cronError, search, login, used };
+    e importe com:  import agentcity from './lib/agentcity.js';
+
+--------------------------------------------------------------------------------
+B1) RADAR COLEGIADOS  (cron de manhã 08–09h e noite 20–21h + pesquisa)
+
+    No topo do arquivo:
+        const agentcity = require('./lib/agentcity');
+
+    No CÓDIGO DO CRONJOB, envolva o trabalho assim:
+        agentcity.cronStart();                       // avisa que começou
+        try {
+          // ... aqui roda a busca no Diário Oficial ...
+          agentcity.cronSuccess('resumo opcional');  // deu certo
+        } catch (e) {
+          agentcity.cronError(e.message);            // deu erro -> robô fica vermelho
+          throw e;
+        }
+
+    Na ROTA DE PESQUISA (a busca manual, independente do cron), no início dela:
+        agentcity.search('termo pesquisado');        // robô fica "Trabalhando"
+
+--------------------------------------------------------------------------------
+B2) PUSH DEORG  (cron de manhã 08–09h + login + pesquisa)
+
+    No topo:
+        const agentcity = require('./lib/agentcity');
+
+    No CRONJOB (igual ao Radar):
+        agentcity.cronStart();
+        try {
+          // ... busca dos processos ...
+          agentcity.cronSuccess('resumo opcional');
+        } catch (e) {
+          agentcity.cronError(e.message);
+          throw e;
+        }
+
+    No LOGIN, logo APÓS validar as credenciais com sucesso:
+        agentcity.login(nomeDoUsuario);   // aparece "Login — fulano" na barra
+
+    Na ROTA DE PESQUISA:
+        agentcity.search('termo pesquisado');
+
+--------------------------------------------------------------------------------
+B3) VIGÊNCIA COLEGIADOS  (uso manual, mensal)
+
+    No topo:
+        const agentcity = require('./lib/agentcity');
+
+    No ponto em que o sistema é acionado (a verificação dos colegiados):
+        agentcity.used('verificação mensal');   // robô fica "Trabalhando"
+
+    (Se a Vigência também tiver um cronjob, use o mesmo padrão
+     cronStart/cronSuccess/cronError do B1.)
+
+--------------------------------------------------------------------------------
+IMPORTANTE: o helper NUNCA quebra o agente. Se o AgentCity estiver fora do ar
+ou as variáveis não estiverem setadas, ele simplesmente não faz nada. Pode
+colar sem medo de derrubar produção.
+
+
+================================================================================
+  PARTE C — TESTAR
+================================================================================
+
+C1) Teste rápido do webhook (sem mexer nos agentes), pelo seu terminal.
+    Troque SEU-AGENTCITY e SEU-SEGREDO pelos seus valores:
+
+    (PowerShell)
+      $b = '{"system":"radar-colegiados","type":"cron_success","detail":"teste"}'
+      Invoke-RestMethod -Method Post `
+        -Uri "https://SEU-AGENTCITY.vercel.app/api/event" `
+        -Headers @{ "x-agentcity-secret" = "SEU-SEGREDO"; "Content-Type"="application/json" } `
+        -Body $b
+
+    Resposta esperada:  ok = True ; stored = True
+    Depois abra o dashboard, clique no robô do Radar Colegiados: deve aparecer
+    "CronJob concluído com sucesso" nos registros das últimas 24h.
+
+    Outros tipos para testar trocando "type":
+      cron_start | cron_error | search | used
+      login  (mande também  "user":"fulano")
+
+C2) Erro por site fora do ar:
+    Se um dos 3 links cair de verdade, em ~1–2 min o robô correspondente fica
+    vermelho (status "Erro") sozinho. Não precisa fazer nada.
+
+
+================================================================================
+  RESUMO DO COMPORTAMENTO (para conferência)
+================================================================================
+  Trabalhando (verde) ... cron rodando, ou pesquisa/login/uso nos últimos 5 min
+  Disponível  (azul) .... no ar, sem atividade no momento
+  Erro        (vermelho)  cron falhou OU link fora do ar (2 checagens seguidas)
+  Em desenvolv.(âmbar) .. Radar Remunerados (sempre, até virar produção)
+  Dormindo    (cinza) ... os 2 postos reservados (sempre)
+
+  Os registros da barra lateral guardam as ÚLTIMAS 24 HORAS e se apagam
+  sozinhos depois disso (TTL no Redis). Nada fica armazenado além disso.
+================================================================================
