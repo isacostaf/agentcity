@@ -376,8 +376,8 @@ function buildPlatform(x, z){
 }
 
 /* ---------- assemble desks ---------- */
-var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081];
-var positions = [ [-3.6,-2.0], [3.6,-2.0], [-3.6,1.9], [3.6,1.9] ];
+var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081, 0xc77dff, 0xff9f4a];
+var positions = [ [-3.6,-2.0], [3.6,-2.0], [-3.6,1.9], [3.6,1.9], [0,-2.0], [0,1.9] ];
 var robots = [];
 var desks = [];
 
@@ -414,7 +414,7 @@ positions.forEach(function(p, i){
   robotObj.drinking = false;
   robotObj.drinkStart = 0;
   robotObj.drinkT = 0;
-  robotObj.nextDrink = 6 + i*7 + Math.random()*6; /* staggered first sip */
+  robotObj.nextDrink = 4 + i*4 + Math.random()*5; /* staggered first sip */
 
   /* how far the robot needs to lean in so its arm can actually reach the cup */
   (function(){
@@ -457,27 +457,6 @@ function buildPlant(x,z){
 buildPlant(-6.8, -1.5);
 buildPlant(6.8, -1.5);
 
-/* rotating holographic pillar, centerpiece between the two robot rows */
-function buildHoloPillar(x,z){
-  var g = new THREE.Group();
-  var base = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.12,20), matJoint);
-  base.position.y = 0.06; base.castShadow = true;
-  g.add(base);
-  var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.9,10), matJoint);
-  stand.position.y = 0.55;
-  g.add(stand);
-  var holoMat = new THREE.MeshStandardMaterial({ color:0x59d6ff, emissive:0x59d6ff, emissiveIntensity:1.4, wireframe:true, transparent:true, opacity:0.85 });
-  var holo = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28,1), holoMat);
-  holo.position.y = 1.25;
-  g.add(holo);
-  var holoLight = new THREE.PointLight(0x59d6ff, 1.3, 3, 2);
-  holoLight.position.y = 1.25;
-  g.add(holoLight);
-  g.position.set(x,0,z);
-  room.add(g);
-  return holo;
-}
-var holoPillar = buildHoloPillar(0, -0.45);
 
 /* ---------- fixed supervisor overview camera ---------- */
 /* Keeps all 4 desks in frame at once, like a manager watching the room.
