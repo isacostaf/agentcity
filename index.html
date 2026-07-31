@@ -168,6 +168,35 @@ var gearTex = makeCanvasTexture(function(ctx,w,h){
   ctx.globalCompositeOperation = 'source-over';
 }, 128, 128);
 
+/* minimal floating name label over each station, so a robot can be identified without
+   clicking it. Just clean spaced uppercase text — no box, matches the corner caption. */
+function makeLabelSprite(text){
+  var fontSize = 44, padX = 14, h = 72, tracking = 3;
+  var label = String(text).toUpperCase();
+  var font = "600 " + fontSize + "px -apple-system,'Segoe UI',Roboto,sans-serif";
+  var meas = document.createElement('canvas').getContext('2d');
+  meas.font = font;
+  var tw = Math.ceil(meas.measureText(label).width) + tracking * Math.max(0, label.length - 1);
+  var w = padX * 2 + tw;
+  var t = makeCanvasTexture(function(ctx, W, H){
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = font; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.shadowColor = 'rgba(0,0,0,0.75)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 1;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    var x = padX, cy = H / 2;
+    for (var i = 0; i < label.length; i++){          /* draw char-by-char for letter-spacing */
+      ctx.fillText(label[i], x, cy);
+      x += ctx.measureText(label[i]).width + tracking;
+    }
+  }, w, h);
+  var mat = new THREE.SpriteMaterial({ map:t.texture, transparent:true, depthWrite:false, depthTest:false });
+  var sp = new THREE.Sprite(mat);
+  var worldH = 0.2;
+  sp.scale.set(worldH * (w / h), worldH, 1);
+  sp.renderOrder = 999; /* draw on top so it stays readable */
+  return sp;
+}
+
 /* ---------- materials ---------- */
 var matWall = new THREE.MeshStandardMaterial({ color:0x252a34, roughness:0.85, metalness:0.05 });
 var matWallDark = new THREE.MeshStandardMaterial({ color:0x1b2028, roughness:0.9, metalness:0.05 });
@@ -706,6 +735,13 @@ positions.forEach(function(p, i){
   robotObj.group.userData.systemSlug = robotObj.systemSlug; /* used by the click/raycast */
   /* no extra rotation: the robot's built-in forward direction now faces the camera */
   room.add(robotObj.group);
+
+  /* floating name label above the station (always visible, no click needed) */
+  var labelName = SYSTEMS[i] ? SYSTEMS[i].name : ('Robô ' + (i + 1));
+  var label = makeLabelSprite(labelName);
+  label.position.set(p[0], PH + 2.2, p[1] - 0.35);
+  room.add(label);
+  robotObj.label = label;
 
   /* coffee-drinking behaviour: pick the arm on the same side as this desk's cup */
   var drinkSide = (p[0] > 0) ? -1 : 1; /* matches mirrorCup logic in buildDesk */
