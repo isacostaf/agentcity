@@ -482,26 +482,26 @@ addFloorRing(0,-0.45,0.55,0x59d6ff);
 })();
 
 /* robot charging dock in the back corner */
-function buildChargingDock(x,z){
-  var g = new THREE.Group();
-  var pad = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.05,24), new THREE.MeshStandardMaterial({color:0x1b1e24, roughness:0.5, metalness:0.4}));
-  pad.position.y = 0.025; pad.receiveShadow = true;
-  g.add(pad);
-  var ringMat = new THREE.MeshStandardMaterial({ color:0xffcf5c, emissive:0xffcf5c, emissiveIntensity:1.2 });
-  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.4,0.02,8,32), ringMat);
-  ring.rotation.x = Math.PI/2; ring.position.y = 0.05;
-  g.add(ring);
-  var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.4,10), matJoint);
-  pole.position.set(0.4,0.7,0);
-  g.add(pole);
-  var sign = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.18,0.02), new THREE.MeshStandardMaterial({color:0x101114}));
-  sign.position.set(0.4,1.42,0);
-  g.add(sign);
-  g.position.set(x,0,z);
-  room.add(g);
-  return ring;
-}
-var dockRing = buildChargingDock(0, -5.6);
+// function buildChargingDock(x,z){
+//   var g = new THREE.Group();
+//   var pad = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.05,24), new THREE.MeshStandardMaterial({color:0x1b1e24, roughness:0.5, metalness:0.4}));
+//   pad.position.y = 0.025; pad.receiveShadow = true;
+//   g.add(pad);
+//   var ringMat = new THREE.MeshStandardMaterial({ color:0xffcf5c, emissive:0xffcf5c, emissiveIntensity:1.2 });
+//   var ring = new THREE.Mesh(new THREE.TorusGeometry(0.4,0.02,8,32), ringMat);
+//   ring.rotation.x = Math.PI/2; ring.position.y = 0.05;
+//   g.add(ring);
+//   var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.4,10), matJoint);
+//   pole.position.set(0.4,0.7,0);
+//   g.add(pole);
+//   var sign = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.18,0.02), new THREE.MeshStandardMaterial({color:0x101114}));
+//   sign.position.set(0.4,1.42,0);
+//   g.add(sign);
+//   g.position.set(x,0,z);
+//   room.add(g);
+//   return ring;
+// }
+// var dockRing = buildChargingDock(0, -5.6);
 
 /* ceiling ducts running the depth of the room, industrial-tech touch */
 function buildDuct(x){
