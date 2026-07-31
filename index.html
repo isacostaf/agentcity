@@ -158,6 +158,21 @@ var winGlow = new THREE.PointLight(0x5f86b3, 2.2, 9, 2);
 winGlow.position.set(0, 3, -ROOM_D_BACK + 1.6);
 room.add(winGlow);
 
+/* matching windows on the side walls (same skyline texture, high on the wall so no furniture collides) */
+var winFrameMat = new THREE.MeshStandardMaterial({ color:0x0c0e12, roughness:0.6 });
+function buildSideWindow(wallX, rotY){
+  var glass = new THREE.Mesh(new THREE.PlaneGeometry(6.5,3.0), winMat);
+  glass.rotation.y = rotY;
+  glass.position.set(wallX, 2.75, 0);
+  room.add(glass);
+  var frame = new THREE.Mesh(new THREE.PlaneGeometry(6.85,3.35), winFrameMat);
+  frame.rotation.y = rotY;
+  frame.position.set(wallX + (rotY>0?-0.02:0.02), 2.75, 0);
+  room.add(frame);
+}
+buildSideWindow(-ROOM_W/2 + 0.03, Math.PI/2);   /* left wall, facing into the room */
+buildSideWindow(ROOM_W/2 - 0.03, -Math.PI/2);   /* right wall, facing into the room */
+
 /* ceiling light strips */
 var ceilLightMat = new THREE.MeshStandardMaterial({ color:0xdfeeff, emissive:0xbfd8ff, emissiveIntensity:1.6, roughness:0.4 });
 [-4.6,-1.6,1.6,4.6].forEach(function(x, i){
