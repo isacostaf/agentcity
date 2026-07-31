@@ -241,17 +241,163 @@ var rightWall = new THREE.Mesh(new THREE.PlaneGeometry(16, ROOM_H), matWallDark)
 rightWall.rotation.y = -Math.PI/2; rightWall.position.set(ROOM_W/2, ROOM_H/2, 3); rightWall.receiveShadow = true;
 room.add(rightWall);
 
-/* window on back wall */
-var winMat = new THREE.MeshBasicMaterial({ map:skyTex.texture });
-var windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(12.96, 3.51), winMat);
+/* back wall: animated "org agents" dashboard, replacing what used to be the skyline window */
+var dashTex = makeCanvasTexture(function(){}, 1024, 280); /* content painted by updateDashboard() each frame */
+var dashMat = new THREE.MeshBasicMaterial({ map:dashTex.texture });
+var windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(12.96, 3.51), dashMat);
 windowMesh.position.set(0, 2.85, -ROOM_D_BACK + 0.03);
 room.add(windowMesh);
 var winFrame = new THREE.Mesh(new THREE.PlaneGeometry(13.365, 3.915), new THREE.MeshStandardMaterial({color:0x0c0e12, roughness:0.6}));
 winFrame.position.set(0, 2.85, -ROOM_D_BACK + 0.01);
 room.add(winFrame);
-var winGlow = new THREE.PointLight(0x5f86b3, 2.2, 9, 2);
+var winGlow = new THREE.PointLight(0x59c8ff, 2.4, 9, 2);
 winGlow.position.set(0, 3, -ROOM_D_BACK + 1.6);
 room.add(winGlow);
+
+var dashHistory = [];
+for (var __dhi=0; __dhi<90; __dhi++) dashHistory.push(0.3 + Math.random()*0.2);
+var dashNodePositions = [
+  {x:0.12,y:0.22},{x:0.40,y:0.12},{x:0.62,y:0.32},
+  {x:0.26,y:0.62},{x:0.55,y:0.72},{x:0.86,y:0.5}
+];
+var dashNodeLinks = [[0,1],[1,2],[0,3],[1,4],[2,5],[3,4],[4,5]];
+var dashAccents = ['#59d6ff','#ff6f91','#ffcf5c','#7ee081','#c77dff','#ff9f4a'];
+
+function drawDashboard(ctx, w, h, t){
+  ctx.fillStyle = '#050a12';
+  ctx.fillRect(0,0,w,h);
+
+  /* faint tech grid */
+  ctx.strokeStyle = 'rgba(90,150,190,0.08)'; ctx.lineWidth = 1;
+  for (var gx=0; gx<w; gx+=32){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,h); ctx.stroke(); }
+  for (var gy=0; gy<h; gy+=28){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(w,gy); ctx.stroke(); }
+
+  /* slow scanline for a "live terminal" feel */
+  var scanY = (t*46) % h;
+  ctx.fillStyle = 'rgba(140,220,255,0.05)';
+  ctx.fillRect(0, scanY, w, 3);
+
+  /* title + live indicator */
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#8fe3ff'; ctx.font = 'bold 34px monospace';
+  ctx.fillText('DEORG AGENTS', 26, 18);
+  ctx.fillStyle = 'rgba(140,220,255,0.65)'; ctx.font = '13px monospace';
+  ctx.fillText('AUTONOMOUS WORKFORCE MONITOR', 26, 58);
+  var liveBlink = 0.5 + 0.5*Math.sin(t*4);
+  ctx.fillStyle = 'rgba(120,255,160,' + (0.4+0.6*liveBlink).toFixed(2) + ')';
+  ctx.beginPath(); ctx.arc(320, 30, 6, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(140,255,180,0.85)'; ctx.font = '13px monospace';
+  ctx.fillText('LIVE', 334, 24);
+
+  /* uptime + active-agent count (top right) */
+  var secs = Math.floor(t);
+  var hh = String(Math.floor(secs/3600)).padStart(2,'0');
+  var mm = String(Math.floor((secs%3600)/60)).padStart(2,'0');
+  var ss = String(secs%60).padStart(2,'0');
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#cfeeff'; ctx.font = '15px monospace';
+  ctx.fillText('UPTIME  ' + hh+':'+mm+':'+ss, w-26, 22);
+  var activeCount = robots.filter(function(r){ return r.mode === 'workingmode'; }).length;
+  ctx.fillStyle = '#8fe3ff';
+  ctx.fillText('AGENTS ACTIVE  ' + activeCount + '/' + robots.length, w-26, 46);
+  ctx.textAlign = 'left';
+
+  /* scrolling activity line graph */
+  var gx0=26, gy0=h-40, gw=380, gh=110, gtop=gy0-gh;
+  ctx.fillStyle = 'rgba(140,220,255,0.6)'; ctx.font = '11px monospace';
+  ctx.fillText('AGENT LOAD', gx0, gtop-16);
+  ctx.strokeStyle = 'rgba(140,190,220,0.22)';
+  ctx.strokeRect(gx0,gtop,gw,gh);
+
+  dashHistory.push(Math.min(0.95, Math.max(0.05, 0.5 + 0.28*Math.sin(t*1.3) + 0.15*Math.sin(t*3.7) + (Math.random()-0.5)*0.06)));
+  if (dashHistory.length > 90) dashHistory.shift();
+  ctx.beginPath();
+  dashHistory.forEach(function(v,i){
+    var px = gx0 + (i/(dashHistory.length-1))*gw;
+    var py = gtop + (1-v)*gh;
+    if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  });
+  ctx.strokeStyle = '#59d6ff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.lineTo(gx0+gw,gy0); ctx.lineTo(gx0,gy0); ctx.closePath();
+  ctx.fillStyle = 'rgba(89,214,255,0.12)'; ctx.fill();
+
+  /* equalizer-style bar graph */
+  var bx0=gx0+gw+44, bw=18, bgap=10, bBaseY=gy0;
+  ctx.fillStyle = 'rgba(140,220,255,0.6)'; ctx.font = '11px monospace';
+  ctx.fillText('THROUGHPUT', bx0, gtop-16);
+  for (var bi=0; bi<8; bi++){
+    var bh = (0.25 + 0.65*Math.abs(Math.sin(t*1.6+bi*0.7))) * gh;
+    var bxp = bx0 + bi*(bw+bgap);
+    var grad = ctx.createLinearGradient(0,bBaseY-bh,0,bBaseY);
+    grad.addColorStop(0,'#7ee081'); grad.addColorStop(1,'#1c5c3a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(bxp, bBaseY-bh, bw, bh);
+  }
+
+  /* agent mesh / node network */
+  var nx0=bx0+8*(bw+bgap)+50, ny0=gtop, nw=w-nx0-26, nh=gh;
+  ctx.fillStyle = 'rgba(140,220,255,0.6)'; ctx.font = '11px monospace';
+  ctx.fillText('AGENT MESH', nx0, gtop-16);
+  ctx.strokeStyle = 'rgba(140,190,220,0.22)';
+  ctx.strokeRect(nx0,ny0,nw,nh);
+  var pts = dashNodePositions.map(function(p){ return { x:nx0+p.x*nw, y:ny0+p.y*nh }; });
+  ctx.strokeStyle = 'rgba(89,214,255,0.35)'; ctx.lineWidth = 1.2;
+  dashNodeLinks.forEach(function(l){
+    ctx.beginPath(); ctx.moveTo(pts[l[0]].x,pts[l[0]].y); ctx.lineTo(pts[l[1]].x,pts[l[1]].y); ctx.stroke();
+  });
+  pts.forEach(function(p,i){
+    var pulse = 0.6 + 0.4*Math.sin(t*2.2+i*1.3);
+    ctx.beginPath(); ctx.arc(p.x,p.y,4+2*pulse,0,Math.PI*2);
+    ctx.fillStyle = dashAccents[i%dashAccents.length];
+    ctx.globalAlpha = 0.55+0.45*pulse;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+function updateDashboard(t){
+  drawDashboard(dashTex.ctx, dashTex.canvas.width, dashTex.canvas.height, t);
+  dashTex.texture.needsUpdate = true;
+}
+
+/* floor-to-ceiling windows on the side walls: same skyline texture but darker/tinted glass,
+   with vertical mullions (esquadrias) dividing it into panes */
+var winFrameMat = new THREE.MeshStandardMaterial({ color:0x0c0e12, roughness:0.6 });
+var winMatDark = new THREE.MeshBasicMaterial({ map:skyTex.texture, color:0x3c4756, transparent:true, opacity:0.92 });
+var mullionMat = new THREE.MeshStandardMaterial({ color:0x0a0b0e, roughness:0.55, metalness:0.2 });
+
+function buildSideWindow(wallX, rotY){
+  var g = new THREE.Group();
+  var winW = 9.9, winH = ROOM_H - 0.2;
+
+  var glass = new THREE.Mesh(new THREE.PlaneGeometry(winW,winH), winMatDark);
+  g.add(glass);
+
+  var frame = new THREE.Mesh(new THREE.PlaneGeometry(winW+0.3,winH+0.25), winFrameMat);
+  frame.position.z = -0.02; /* just behind the glass, toward the wall */
+  g.add(frame);
+
+  /* vertical mullions splitting the window into panes */
+  var panes = 6;
+  for (var i=1; i<panes; i++){
+    var mx = -winW/2 + (winW/panes)*i;
+    var mullion = new THREE.Mesh(new THREE.BoxGeometry(0.06,winH,0.03), mullionMat);
+    mullion.position.set(mx, 0, 0.02); /* just in front of the glass, toward the room */
+    g.add(mullion);
+  }
+  /* outer vertical posts */
+  [-winW/2+0.02, winW/2-0.02].forEach(function(mx){
+    var post = new THREE.Mesh(new THREE.BoxGeometry(0.08,winH,0.03), mullionMat);
+    post.position.set(mx, 0, 0.02);
+    g.add(post);
+  });
+
+  g.position.set(wallX, winH/2 + 0.1, 0);
+  g.rotation.y = rotY;
+  room.add(g);
+}
+buildSideWindow(-ROOM_W/2 + 0.03, Math.PI/2);   /* left wall, facing into the room */
+buildSideWindow(ROOM_W/2 - 0.03, -Math.PI/2);   /* right wall, facing into the room */
 
 /* ceiling light strips */
 var ceilLightMat = new THREE.MeshStandardMaterial({ color:0xdfeeff, emissive:0xbfd8ff, emissiveIntensity:1.6, roughness:0.4 });
@@ -474,6 +620,23 @@ function buildRobot(accent, phase){
     hips.add(leg);
   });
 
+
+  /* "zzz" icon for the 'sleepingmode' mode — child of the top-level (unrotated) group
+     so its world position can be placed directly above the head regardless of pose */
+  var zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map:zzzTex.texture, transparent:true, depthWrite:false, opacity:0 }));
+  zzz.scale.set(0.3,0.3,1);
+  zzz.visible = false;
+  g.add(zzz);
+
+  /* gear icon for the 'devmode' (in-development) mode */
+  var gear = new THREE.Sprite(new THREE.SpriteMaterial({ map:gearTex.texture, transparent:true, depthWrite:false, opacity:0 }));
+  gear.scale.set(0.26,0.26,1);
+  gear.visible = false;
+  g.add(gear);
+
+  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz, gear:gear };
+}
+
     /* BREAK CORNER COFFEE*/
   function buildBreakCorner(x,z,rotY){
   var g = new THREE.Group();
@@ -502,7 +665,7 @@ function buildRobot(accent, phase){
 
   var splash = new THREE.Mesh(
     new THREE.BoxGeometry(3.28,0.35,0.03),
-    new THREE.MeshStandardMaterial({color:0xd8d2c4, roughness:0.4})
+    new THREE.MeshStandardMaterial({color:0x161b24, roughness:0.4})
   );
   splash.position.set(0,1.02,-0.29);
   g.add(splash);
@@ -606,12 +769,14 @@ function buildRobot(accent, phase){
   // bulb.position.set(0.15,2.1,0.25);
   // g.add(bulb);
 
-  var pendantLight = new THREE.PointLight(0xffcf8a, 0.3, 3.2, 2);
-  pendantLight.position.set(0.15,2.1,0.25);
+  // luz visivel
+  var pendantLight = new THREE.PointLight(0xffcf8a, 0.2, 3.2, 2);
+  pendantLight.position.set(0.15,1.3,0.25);
   g.add(pendantLight);
-  var pendantLight2 = new THREE.PointLight(0xffcf8a,0.25,3,2);
-  pendantLight2.position.set(-1.5,2.1,0.25);
+  var pendantLight2 = new THREE.PointLight(0xffcf8a,0.2,3,2);
+  pendantLight2.position.set(-1.5,1.3,0.25);
   g.add(pendantLight2);
+
   function stool(sx,sz){
     var sg = new THREE.Group();
     var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.05,16), matChair);
@@ -636,24 +801,443 @@ function buildRobot(accent, phase){
   g.position.set(x,0,z); g.rotation.y = rotY||0;
   room.add(g);
   return machLedMat;
+} var coffeeLed = buildBreakCorner(7.0, -3.3, -Math.PI/2);
+
+/* ------------------
+--- WATER STATION ---
+------------------ */
+function buildWaterStation(x,z){
+  var g = new THREE.Group();
+  var tray = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.04,16), new THREE.MeshStandardMaterial({color:0x15171b, roughness:0.4, metalness:0.5}));
+  tray.position.y = 0.02; tray.receiveShadow = true;
+  g.add(tray);
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.19,1.05,16), new THREE.MeshStandardMaterial({color:0xeef1f4, roughness:0.25, metalness:0.15}));
+  body.position.y = 0.55; body.castShadow = true;
+  g.add(body);
+  var panel = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.02), new THREE.MeshStandardMaterial({color:0x1c1f24, roughness:0.4}));
+  panel.position.set(0,0.55,0.175);
+  g.add(panel);
+  var hotBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.015,10), new THREE.MeshStandardMaterial({color:0xd8483f, emissive:0xd8483f, emissiveIntensity:0.6}));
+  hotBtn.rotation.x = Math.PI/2; hotBtn.position.set(0,0.68,0.19);
+  g.add(hotBtn);
+  var coldBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.015,10), new THREE.MeshStandardMaterial({color:0x3f8fd8, emissive:0x3f8fd8, emissiveIntensity:0.6}));
+  coldBtn.rotation.x = Math.PI/2; coldBtn.position.set(0,0.6,0.19);
+  g.add(coldBtn);
+  var dispTex = makeCanvasTexture(function(ctx,w,h){
+    ctx.fillStyle = '#05141c'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#5fe0ff'; ctx.font = 'bold 46px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('5°C', w/2, h/2+16);
+  },128,64);
+  var dispMat = new THREE.MeshStandardMaterial({ map:dispTex.texture, emissiveMap:dispTex.texture, emissive:0xffffff, emissiveIntensity:0.9, side:THREE.DoubleSide });
+  var disp = new THREE.Mesh(new THREE.PlaneGeometry(0.09,0.045), dispMat);
+  disp.position.set(0,0.76,0.191);
+  g.add(disp);
+  var bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.145,0.165,0.5,16), new THREE.MeshStandardMaterial({color:0x8fd0e8, roughness:0.1, metalness:0.05, transparent:true, opacity:0.7}));
+  bottle.position.y = 1.32; bottle.castShadow = true;
+  g.add(bottle);
+  var waterLine = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,0.28,16), new THREE.MeshStandardMaterial({color:0x4fb8e0, transparent:true, opacity:0.55}));
+  waterLine.position.y = 1.2;
+  g.add(waterLine);
+  var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.07,12), matJoint);
+  cap.position.y = 1.6;
+  g.add(cap);
+  [0,0.09].forEach(function(dy){
+    var spigot = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.09,8), matJoint);
+    spigot.rotation.z = Math.PI/2;
+    spigot.position.set(0.2, 0.82-dy, 0);
+    g.add(spigot);
+  });
+  var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.5,14,1,true), new THREE.MeshStandardMaterial({color:0xcfe6f2, roughness:0.15, transparent:true, opacity:0.5, side:THREE.DoubleSide}));
+  tube.position.set(-0.28,0.8,0);
+  g.add(tube);
+  for (var cI=0; cI<5; cI++){
+    var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.042,0.034,0.07,12), new THREE.MeshStandardMaterial({color:0xf4f2ec, roughness:0.5}));
+    cup.position.set(-0.28, 0.58+cI*0.045, 0);
+    g.add(cup);
+  }
+  var cupTray = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.02,12), matJoint);
+  cupTray.position.set(-0.28,0.52,0);
+  g.add(cupTray);
+  var mat2 = new THREE.Mesh(new THREE.CircleGeometry(0.55,24), new THREE.MeshStandardMaterial({color:0x0a0c11, roughness:0.9}));
+  mat2.rotation.x = -Math.PI/2; mat2.position.y = 0.008;
+  g.add(mat2);
+  g.position.set(x,0,z);
+  room.add(g);
+  var stationLight = new THREE.SpotLight(0xbfe8ff, 0.1, 3.5, Math.PI/6, 0.5, 1.5);
+  stationLight.position.set(x, 2.3, z+0.3);
+  stationLight.target.position.set(x,1,z);
+  g.rotation.y = -Math.PI / 3;
+  room.add(stationLight); room.add(stationLight.target);
 }
-var coffeeLed = buildBreakCorner(7.0, -3.3, -Math.PI/2);
+buildWaterStation(6.8, -0.9);
 
-  /* "zzz" icon for the 'sleepingmode' mode — child of the top-level (unrotated) group
-     so its world position can be placed directly above the head regardless of pose */
-  var zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map:zzzTex.texture, transparent:true, depthWrite:false, opacity:0 }));
-  zzz.scale.set(0.3,0.3,1);
-  zzz.visible = false;
-  g.add(zzz);
 
-  /* gear icon for the 'devmode' (in-development) mode */
-  var gear = new THREE.Sprite(new THREE.SpriteMaterial({ map:gearTex.texture, transparent:true, depthWrite:false, opacity:0 }));
-  gear.scale.set(0.26,0.26,1);
-  gear.visible = false;
-  g.add(gear);
+/* ---------- sofa, next to the water station ---------- */
+function buildSofa(x, z, rotY){
+  var g = new THREE.Group();
+  var matFrame = new THREE.MeshStandardMaterial({ color:0x0a0c11, roughness:0.6, metalness:0.15 });
+  var matCushion = new THREE.MeshStandardMaterial({ color:0x11151b, roughness:0.85, metalness:0.02 });
+  var matPillow = new THREE.MeshStandardMaterial({ color:0xd9a15a, roughness:0.75, metalness:0.02 });
+  var matLeg = new THREE.MeshStandardMaterial({ color:0x1a1c20, roughness:0.35, metalness:0.6 });
 
-  return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz, gear:gear };
+  var base = new THREE.Mesh(
+    new THREE.BoxGeometry(2.0,0.18,0.66),
+    matFrame
+  );
+  base.position.y = 0.2; base.castShadow = true; base.receiveShadow = true;
+  g.add(base);
+
+  /* two seat cushions, side by side with a small gap */
+  [-0.67, 0, 0.67].forEach(function(sx){
+    var cushion = new THREE.Mesh(new THREE.BoxGeometry(0.64,0.22,0.6), matCushion);
+    cushion.position.set(sx, 0.4, 0.02); cushion.castShadow = true;
+    g.add(cushion);
+  });
+
+  var backFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(2.0,0.55,0.14),
+    matFrame
+  );
+  backFrame.position.set(0, 0.68, -0.26); backFrame.castShadow = true;
+  g.add(backFrame);
+
+  // /* two plump back cushions (squashed spheres for a rounded, stuffed look) */
+  // [-0.335, 0.335].forEach(function(sx){
+  //   var backCushion = new THREE.Mesh(new THREE.SphereGeometry(0.22,14,10), matCushion);
+  //   backCushion.scale.set(0.86,0.95,0.42);
+  //   backCushion.position.set(sx, 0.6, -0.19); backCushion.castShadow = true;
+  //   g.add(backCushion);
+  // });
+
+  /* armrests with a rolled top */
+  [-1,1].forEach(function(side){
+    var armBase = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.4,0.66), matFrame);
+    armBase.position.set(side*0.99, 0.4, 0); armBase.castShadow = true;
+    g.add(armBase);
+    // var armRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.66,12), matCushion);
+    // armRoll.rotation.x = Math.PI/2;
+    // armRoll.position.set(side*0.66, 0.6, 0); armRoll.castShadow = true;
+    // g.add(armRoll);
+  });
+
+  // /* throw pillow accent */
+  // var pillow = new THREE.Mesh(new THREE.BoxGeometry(0.24,0.22,0.24), matPillow);
+  // pillow.position.set(0.5, 0.46, 0.08);
+  // pillow.rotation.y = 0.6; pillow.rotation.z = 0.15;
+  // pillow.castShadow = true;
+  // //g.add(pillow);
+
+  /* tapered, slightly splayed legs */
+  [[-0.88,-0.25],[0.88,-0.25],[-0.88,0.25],[0.88,0.25]].forEach(function(p){
+    var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.035,0.18,8), matLeg);
+    leg.position.set(p[0]*1.02, 0.09, p[1]*1.02);
+    leg.rotation.x = (p[1]<0 ? -1 : 1) * 0.06;
+    leg.rotation.z = (p[0]<0 ? 1 : -1) * 0.06;
+    leg.castShadow = true;
+    g.add(leg);
+  });
+
+  g.position.set(x, 0, z);
+  if (rotY) g.rotation.y = rotY;
+  room.add(g);
 }
+buildSofa(6.5, 1, -Math.PI/2); /* facing into the room, same side as the water station */
+buildSofa(-6.5, 2.1, Math.PI/2);
+// archives
+function buildFileCabinet(x,z,rotY){
+  var g = new THREE.Group();
+  var body = new THREE.Mesh(new THREE.BoxGeometry(0.5,1.3,0.6), new THREE.MeshStandardMaterial({color:0x4a5568, roughness:0.5, metalness:0.3}));
+  body.position.y = 0.65; body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+  for (var i=0;i<3;i++){
+    var seam = new THREE.Mesh(new THREE.BoxGeometry(0.52,0.01,0.62), matJoint);
+    seam.position.set(0, 0.22+i*0.42, 0);
+    g.add(seam);
+    var handle = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.025,0.03), matJoint);
+    handle.position.set(0, 0.42+i*0.42, 0.315);
+    g.add(handle);
+  }
+  g.position.set(x,0,z); g.rotation.y = rotY||0;
+  room.add(g);
+}
+buildFileCabinet(-7.12, -4.9, Math.PI/2);
+buildFileCabinet(-7.12, -4.27, Math.PI/2);
+buildFileCabinet(-7.12, -3.64, Math.PI/2);
+
+/* ---------- printer station: cabinet + robust printer + supply counter, opposite wall from the water station/sofa ---------- */
+var matPrinterCart = new THREE.MeshStandardMaterial({ color:0x2a2d33, roughness:0.5, metalness:0.4 });
+var matPrinterBody = new THREE.MeshStandardMaterial({ color:0xdfe2e6, roughness:0.3, metalness:0.15 });
+var matPrinterDark = new THREE.MeshStandardMaterial({ color:0x1c1e22, roughness:0.4, metalness:0.2 });
+var matPaper = new THREE.MeshStandardMaterial({ color:0xf4f2ec, roughness:0.75, metalness:0.0, side:THREE.DoubleSide });
+var matReamWrap = new THREE.MeshStandardMaterial({ color:0x3f7dd8, roughness:0.4, metalness:0.05 });
+
+function buildPrinterStation(x, z, rotY){
+  var g = new THREE.Group();
+
+  /* --- cabinet the printer sits on --- */
+  var cabW=0.64, cabH=0.86, cabD=0.5;
+  var cabinet = new THREE.Mesh(new THREE.BoxGeometry(cabW,cabH,cabD), matPrinterCart);
+  cabinet.position.set(0, cabH/2, 0); cabinet.castShadow = true; cabinet.receiveShadow = true;
+  g.add(cabinet);
+  var doorSeam = new THREE.Mesh(new THREE.BoxGeometry(0.012,cabH*0.72,0.012), matPrinterDark);
+  doorSeam.position.set(0, cabH*0.5, cabD/2+0.006);
+  g.add(doorSeam);
+  [-0.11,0.11].forEach(function(hx){
+    var handle = new THREE.Mesh(new THREE.BoxGeometry(0.018,0.12,0.022), matPrinterDark);
+    handle.position.set(hx, cabH*0.48, cabD/2+0.02);
+    g.add(handle);
+  });
+  [[-0.27,-0.21],[0.27,-0.21],[-0.27,0.21],[0.27,0.21]].forEach(function(p){
+    var foot = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.03,8), matPrinterDark);
+    foot.position.set(p[0], 0.015, p[1]);
+    g.add(foot);
+  });
+  var topY = cabH;
+
+  /* --- robust printer body --- */
+  var pW=0.54, pH=0.32, pD=0.44;
+  var bodyY = topY + pH/2;
+  var body = new THREE.Mesh(new THREE.BoxGeometry(pW,pH,pD), matPrinterBody);
+  body.position.y = bodyY; body.castShadow = true;
+  g.add(body);
+  var lid = new THREE.Mesh(new THREE.BoxGeometry(pW,0.05,pD), matPrinterDark);
+  lid.position.y = bodyY + pH/2 + 0.025; lid.castShadow = true;
+  g.add(lid);
+
+  /* paper input drawer, bottom front */
+  var drawer = new THREE.Mesh(new THREE.BoxGeometry(pW*0.72,0.09,0.03), matPrinterDark);
+  drawer.position.set(0, topY+0.06, pD/2+0.012);
+  g.add(drawer);
+  var drawerHandle = new THREE.Mesh(new THREE.BoxGeometry(pW*0.4,0.015,0.015), matPrinterCart);
+  drawerHandle.position.set(0, topY+0.06, pD/2+0.03);
+  g.add(drawerHandle);
+
+  /* control panel with a small screen + buttons */
+  var panelY = bodyY + pH*0.22;
+  var panel = new THREE.Mesh(new THREE.BoxGeometry(0.19,0.11,0.015), matPrinterDark);
+  panel.position.set(-pW*0.2, panelY, pD/2+0.005);
+  panel.rotation.x = -0.2;
+  g.add(panel);
+  var panelTex = makeCanvasTexture(function(ctx,w,h){
+    ctx.fillStyle = '#07220f'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#63e08a'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('PRINTING...', w/2, h/2+7);
+  }, 180,56);
+  var panelMat = new THREE.MeshStandardMaterial({ map:panelTex.texture, emissiveMap:panelTex.texture, emissive:0xffffff, emissiveIntensity:0.85 });
+  var panelScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.15,0.05), panelMat);
+  panelScreen.position.set(-pW*0.2, panelY+0.017, pD/2+0.014);
+  panelScreen.rotation.x = -0.2;
+  g.add(panelScreen);
+  for (var bi=0; bi<3; bi++){
+    var btn = new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.011,0.01,10), matPrinterCart);
+    btn.rotation.x = Math.PI/2 - 0.2;
+    btn.position.set(-pW*0.2 - 0.03 + bi*0.03, panelY-0.035, pD/2+0.012);
+    g.add(btn);
+  }
+
+  /* output slot + sloped tray */
+  var slotY = bodyY + pH*0.02;
+  var slot = new THREE.Mesh(new THREE.BoxGeometry(pW*0.66,0.02,0.06), matPrinterDark);
+  slot.position.set(0.05, slotY, pD/2-0.02);
+  g.add(slot);
+  var trayY = bodyY - pH*0.32;
+  var tray = new THREE.Mesh(new THREE.BoxGeometry(pW*0.72,0.02,0.17), matPrinterDark);
+  tray.position.set(0.05, trayY, pD/2+0.045);
+  tray.rotation.x = -0.12;
+  g.add(tray);
+
+  /* a few already-printed sheets sitting in the tray */
+  for (var s=0; s<4; s++){
+    var stackSheet = new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.21), matPaper);
+    stackSheet.rotation.x = -Math.PI/2 - 0.12;
+    stackSheet.position.set(0.05+(s%2?1:-1)*0.008, trayY+0.008+s*0.004, pD/2+0.06+(s%2?1:-1)*0.008);
+    g.add(stackSheet);
+  }
+
+  var ledMat = new THREE.MeshStandardMaterial({ color:0x5cf28c, emissive:0x5cf28c, emissiveIntensity:1.2 });
+  var led = new THREE.Mesh(new THREE.CircleGeometry(0.013,10), ledMat);
+  led.position.set(pW*0.32, bodyY+pH*0.28, pD/2+0.008);
+  g.add(led);
+
+  /* vents on the side */
+  for (var vi=0; vi<4; vi++){
+    var vent = new THREE.Mesh(new THREE.BoxGeometry(0.012,0.16,0.012), matPrinterDark);
+    vent.position.set(-pW/2-0.006, bodyY, -pD*0.3+vi*0.14);
+    g.add(vent);
+  }
+
+  /* the sheet currently being printed — animated in the main loop via updatePrinter() */
+  var sheet = new THREE.Mesh(new THREE.PlaneGeometry(pW*0.62,0.22), matPaper);
+  sheet.rotation.x = -Math.PI/2;
+  sheet.position.set(0.05, slotY+0.001, pD/2-0.02);
+  sheet.scale.y = 0.05;
+  g.add(sheet);
+
+  g.position.set(x, 0, z);
+  if (rotY) g.rotation.y = rotY;
+  room.add(g);
+
+  return { sheet:sheet, sheetSlotY:slotY+0.001, sheetTrayY:trayY+0.012, led:ledMat };
+}
+
+/* ---------- supply cabinet: separate piece of furniture that happens to sit right next to the
+   printer station, holding paper stock and office odds and ends. Kept as its own function/group
+   (own build call, own THREE.Group) rather than being part of buildPrinterStation. ---------- */
+function buildSupplyCabinet(x, z, rotY){
+  var g = new THREE.Group();
+  var cabH=0.86, cabD=0.5, cabW=0.95;
+
+  var cabinet2 = new THREE.Mesh(new THREE.BoxGeometry(cabW,cabH,cabD), matPrinterCart);
+  cabinet2.position.set(0, cabH/2, 0);
+  cabinet2.castShadow = true; cabinet2.receiveShadow = true;
+  g.add(cabinet2);
+  [-0.16,0.16].forEach(function(dx){
+    var doorSeam2 = new THREE.Mesh(new THREE.BoxGeometry(0.012,cabH*0.72,0.012), matPrinterDark);
+    doorSeam2.position.set(dx, cabH*0.5, cabD/2+0.006);
+    g.add(doorSeam2);
+  });
+  [-0.25,-0.07,0.07,0.25].forEach(function(hx){
+    var handle2 = new THREE.Mesh(new THREE.BoxGeometry(0.016,0.1,0.02), matPrinterDark);
+    handle2.position.set(hx, cabH*0.48, cabD/2+0.02);
+    g.add(handle2);
+  });
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(function(sgn){
+    var foot2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.03,8), matPrinterDark);
+    foot2.position.set(sgn[0]*(cabW/2-0.06), 0.015, sgn[1]*(cabD/2-0.06));
+    g.add(foot2);
+  });
+  var topY = cabH;
+
+  /* stacked reams of paper, one still wrapped */
+  var ream1 = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.06,0.22), matPaper);
+  ream1.position.set(-0.35, topY+0.03, -0.08); ream1.castShadow = true;
+  g.add(ream1);
+  var ream2 = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.06,0.22), matReamWrap);
+  ream2.position.set(-0.35, topY+0.09, -0.08); ream2.castShadow = true;
+  g.add(ream2);
+  var reamLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.13,0.045), new THREE.MeshStandardMaterial({color:0xf2f4f7, roughness:0.6}));
+  reamLabel.rotation.x = -Math.PI/2; reamLabel.position.set(-0.35, topY+0.121, -0.08);
+  g.add(reamLabel);
+
+  /* a loose, slightly fanned pile of paper */
+  for (var lp=0; lp<6; lp++){
+    var loose = new THREE.Mesh(new THREE.PlaneGeometry(0.22,0.28), matPaper);
+    loose.rotation.x = -Math.PI/2;
+    loose.rotation.z = (lp-2.5)*0.05;
+    loose.position.set(-0.1, topY+0.026+lp*0.003, 0.1);
+    g.add(loose);
+  }
+
+  /* stapler */
+  var stapler = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.05,0.045), new THREE.MeshStandardMaterial({color:0xb23b3b, roughness:0.4, metalness:0.2}));
+  stapler.position.set(0.05, topY+0.05, -0.16); stapler.castShadow = true;
+  g.add(stapler);
+
+  /* tape dispenser */
+  var tape = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.03,16), new THREE.MeshStandardMaterial({color:0xdedede, roughness:0.3, metalness:0.1, transparent:true, opacity:0.75}));
+  tape.position.set(0.05, topY+0.04, 0.16); tape.castShadow = true;
+  g.add(tape);
+
+  /* stack of manila folders, slightly askew */
+  var matFolder = new THREE.MeshStandardMaterial({ color:0xd8a856, roughness:0.7, metalness:0.02 });
+  for (var fo=0; fo<3; fo++){
+    var folder = new THREE.Mesh(new THREE.BoxGeometry(0.26,0.016,0.32), matFolder);
+    folder.rotation.y = (fo-1)*0.09;
+    folder.position.set(0.28, topY+0.028+fo*0.02, -0.02);
+    folder.castShadow = true;
+    g.add(folder);
+  }
+
+  /* pen cup with a few pens */
+  var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.03,0.09,12), matPrinterDark);
+  cup.position.set(0.3, topY+0.045, 0.17); cup.castShadow = true;
+  g.add(cup);
+  [0xff5a5a,0x5ac0ff,0x74e08a].forEach(function(pc,pi){
+    var pen = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.16,8), new THREE.MeshStandardMaterial({color:pc, roughness:0.4}));
+    pen.position.set(0.3+(pi-1)*0.018, topY+0.12, 0.17+(pi-1)*0.012);
+    pen.rotation.z = (pi-1)*0.18;
+    pen.castShadow = true;
+    g.add(pen);
+  });
+
+  /* sticky note pad */
+  var stickyPad = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.02,0.08), new THREE.MeshStandardMaterial({color:0xf2d35c, roughness:0.7}));
+  stickyPad.position.set(-0.1, topY+0.036, -0.16); stickyPad.castShadow = true;
+  g.add(stickyPad);
+
+  /* small succulent for a bit of life on top of the cabinet */
+  var potMat = new THREE.MeshStandardMaterial({ color:0x3d3a34, roughness:0.7, metalness:0.1 });
+  var leafMat = new THREE.MeshStandardMaterial({ color:0x4a8f56, roughness:0.6, metalness:0.0 });
+  var miniPot = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.04,0.06,12), potMat);
+  miniPot.position.set(0.36, topY+0.055, -0.13); miniPot.castShadow = true;
+  g.add(miniPot);
+  for (var mi=0; mi<5; mi++){
+    var mleaf = new THREE.Mesh(new THREE.ConeGeometry(0.018,0.11,6), leafMat);
+    var ma = (mi/5)*Math.PI*2;
+    mleaf.position.set(0.36+Math.cos(ma)*0.025, topY+0.13, -0.13+Math.sin(ma)*0.025);
+    mleaf.rotation.z = Math.cos(ma)*0.3; mleaf.rotation.x = Math.sin(ma)*0.3;
+    mleaf.castShadow = true;
+    g.add(mleaf);
+  }
+
+  g.position.set(x, 0, z);
+  if (rotY) g.rotation.y = rotY;
+  room.add(g);
+}
+
+/* ---------- paper shredder, beside the printer (opposite side from the supply cabinet) ---------- */
+var matShredBody = new THREE.MeshStandardMaterial({ color:0x24262b, roughness:0.45, metalness:0.25 });
+var matShredBin = new THREE.MeshStandardMaterial({ color:0x30343c, roughness:0.3, metalness:0.1, transparent:true, opacity:0.5 });
+var matShredStrip = new THREE.MeshStandardMaterial({ color:0xe9e6df, roughness:0.8, side:THREE.DoubleSide });
+
+function buildShredder(x, z, rotY){
+  var g = new THREE.Group();
+  var binW=0.36, binH=0.42, binD=0.3;
+
+  var bin = new THREE.Mesh(new THREE.BoxGeometry(binW,binH,binD), matShredBin);
+  bin.position.y = binH/2; bin.castShadow = true; bin.receiveShadow = true;
+  g.add(bin);
+
+  /* pile of already-shredded strips sitting at the bottom of the bin */
+  for (var i=0; i<16; i++){
+    var strip = new THREE.Mesh(new THREE.BoxGeometry(0.02+Math.random()*0.025, 0.01, 0.1+Math.random()*0.09), matShredStrip);
+    strip.position.set((Math.random()-0.5)*binW*0.65, 0.015+Math.random()*0.05, (Math.random()-0.5)*binD*0.65);
+    strip.rotation.y = Math.random()*Math.PI;
+    g.add(strip);
+  }
+
+  var topH = 0.09;
+  var topUnit = new THREE.Mesh(new THREE.BoxGeometry(binW+0.02,topH,binD+0.02), matShredBody);
+  topUnit.position.y = binH + topH/2; topUnit.castShadow = true;
+  g.add(topUnit);
+
+  var slotY = binH + topH*0.5;
+  var slot = new THREE.Mesh(new THREE.BoxGeometry(binW*0.55,0.014,0.03), matPrinterDark);
+  slot.position.set(0, slotY+0.03, binD/2-0.03);
+  g.add(slot);
+
+  var ledMat = new THREE.MeshStandardMaterial({ color:0xff5c4d, emissive:0xff5c4d, emissiveIntensity:0.5 });
+  var led = new THREE.Mesh(new THREE.CircleGeometry(0.011,10), ledMat);
+  led.position.set(binW*0.32, binH+topH*0.5, binD/2+0.011);
+  g.add(led);
+
+  /* the sheet currently being fed in — animated in the main loop via updateShredder() */
+  var feedStartY = binH + topH + 0.16;
+  var sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.22,0.3), matPaper);
+  sheet.position.set(0, feedStartY, binD/2-0.02);
+  g.add(sheet);
+
+  g.position.set(x, 0, z);
+  if (rotY) g.rotation.y = rotY;
+  room.add(g);
+
+  return { sheet:sheet, topUnit:topUnit, led:ledMat, feedStartY:feedStartY, slotY:slotY+0.03 };
+}
+
+var printerStation = buildPrinterStation(-6.8, -0.5, Math.PI/2); /* facing into the room, opposite wall from the water station */
+var shredderUnit = buildShredder(-6.8, 0.12, Math.PI/2); /* opposite side of the printer cabinet from the supply cabinet */
+buildSupplyCabinet(-6.8, -1.375, Math.PI/2); /* sits right beside the printer cabinet — same wall, same facing, adjacent position */
+buildSupplyCabinet(-6.8, -2.4, Math.PI/2);
 
 /* ---------- station floor outline (rectangular LED strip, floor stays as-is) ---------- */
 function buildPlatform(x, z){
@@ -677,8 +1261,8 @@ function buildPlatform(x, z){
 }
 
 /* ---------- assemble desks ---------- */
-var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081, 0xc77dff, 0xff9f4a];
-var positions = [ [-3.6,-2.0], [3.6,-2.0], [-3.6,1.9], [3.6,1.9], [0,-2.0], [0,1.9] ];
+var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081];
+var positions = [ [-3.3,-2.0], [3.3,-2.0], [-3.3,1.9], [3.3,1.9]];
 
 /* ---------- systems <-> robots ----------
    Cada robô (na ordem das mesas em `positions`) representa um sistema real.
@@ -814,6 +1398,46 @@ function buildPlant(x,z){
 // buildPlant(-6.8, -1.5);
 // buildPlant(6.8, -1.5);
 
+/* TRASH BIN */
+function buildTrashBin(x,z){
+  var bin = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12,0.09,0.28,12),
+    new THREE.MeshStandardMaterial({color:0x2a2d33, roughness:0.5, metalness:0.3})
+  );
+  bin.position.set(x,0.14,z);
+  bin.castShadow = true;
+  room.add(bin);
+}
+
+positions.forEach(function(p){
+  buildTrashBin(p[0] > 0 ? p[0]-1 : p[0]+1, p[1]-0.62);
+});
+
+buildTrashBin(6.55, -4.15);
+
+// PILAR REDONDO NO MEIO
+/* rotating holographic pillar, centerpiece between the two robot rows */
+/* rotating holographic pillar, centerpiece between the two robot rows */
+function buildHoloPillar(x,z){
+  var g = new THREE.Group();
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.12,20), matJoint);
+  base.position.y = 0.06; base.castShadow = true;
+  g.add(base);
+  var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.9,10), matJoint);
+  stand.position.y = 0.55;
+  g.add(stand);
+  var holoMat = new THREE.MeshStandardMaterial({ color:0x59d6ff, emissive:0x59d6ff, emissiveIntensity:1.4, wireframe:true, transparent:true, opacity:0.85 });
+  var holo = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28,1), holoMat);
+  holo.position.y = 1.25;
+  g.add(holo);
+  var holoLight = new THREE.PointLight(0x59d6ff, 1.3, 3, 2);
+  holoLight.position.y = 1.25;
+  g.add(holoLight);
+  g.position.set(x,0,z);
+  room.add(g);
+  return holo;
+}
+var holoPillar = buildHoloPillar(0, -0.45);
 
 /* ---------- fixed supervisor overview camera ---------- */
 /* Keeps all 4 desks in frame at once, like a manager watching the room.
@@ -897,6 +1521,35 @@ function drinkPhaseAmounts(dp){
   if (dp < DRINK_T4) return { reach: 1, lift: 1 - smoothstep01((dp-DRINK_T3)/(DRINK_T4-DRINK_T3)) };
   return { reach: 1 - smoothstep01((dp-DRINK_T4)/(1-DRINK_T4)), lift: 0 };
 }
+
+/* printer station: a sheet keeps emerging from the slot, sliding out and dropping onto the tray, looping */
+var PRINT_DURATION = 2.4;
+function updatePrinter(t){
+  var p = printerStation;
+  var cyc = (t % PRINT_DURATION) / PRINT_DURATION;
+  var emerge = smoothstep01(cyc / 0.35);
+  var slide = smoothstep01((cyc - 0.35) / 0.65);
+  p.sheet.scale.y = 0.05 + 0.95 * emerge;
+  p.sheet.position.z = THREE.MathUtils.lerp(0.2, 0.265, slide);
+  p.sheet.position.y = THREE.MathUtils.lerp(p.sheetSlotY, p.sheetTrayY, slide);
+  p.led.emissiveIntensity = 0.6 + Math.sin(t*6)*0.5*(1 - slide*0.5);
+}
+
+/* paper shredder: a sheet feeds down into the slot, then shrinks away as it's "shredded", looping.
+   The unit jitters and its LED glows brighter while a sheet is actively being consumed. */
+var SHRED_DURATION = 2.0;
+function updateShredder(t){
+  var s = shredderUnit;
+  var cyc = (t % SHRED_DURATION) / SHRED_DURATION;
+  var feed = smoothstep01(cyc / 0.55);
+  var consume = smoothstep01((cyc - 0.55) / 0.45);
+  s.sheet.position.y = THREE.MathUtils.lerp(s.feedStartY, s.slotY, feed);
+  s.sheet.scale.y = 1 - 0.95 * consume;
+  var jitter = consume * (1 - consume) * 4; /* peaks mid-shred */
+  s.topUnit.position.x = Math.sin(t*45) * 0.0025 * jitter;
+  s.led.emissiveIntensity = 0.5 + jitter * (0.6 + 0.4*Math.sin(t*24));
+}
+
 /* ---------- robot behavior modes ----------
    Each mode is a function(r, t): r is the robot object, t is the elapsed clock time.
    It's responsible for posing that one robot for the current frame.
@@ -1013,6 +1666,15 @@ function modeIdle(r, t){
   r.cup.position.copy(r.cupBasePos);
   r.cup.rotation.copy(r.cupBaseRot);
 }
+
+/* glowing floor ring beneath the hologram + accent baseboard strips */
+function addFloorRing(x,z,r,color){
+  var ring = new THREE.Mesh(new THREE.RingGeometry(r-0.03,r,40), new THREE.MeshStandardMaterial({ color:color, emissive:color, emissiveIntensity:1.0, side:THREE.DoubleSide, transparent:true, opacity:0.8 }));
+  ring.rotation.x = -Math.PI/2; ring.position.set(x,0.015,z);
+  room.add(ring);
+}
+addFloorRing(0,-0.45,0.55,0x59d6ff);
+addFloorRing(0,-0.45,1,0x59d6ff);
 
 function modeSleeping(r, t){
   /* asleep: bowed forward at the hips until the head rests on the desk, plus a "zzz" drifting up */
@@ -1170,6 +1832,13 @@ function animate(){
     var handler = ROBOT_MODE_HANDLERS[r.mode] || modeWorking;
     handler(r, t);
   });
+
+  updatePrinter(t);
+  updateShredder(t);
+
+  if (frame % 4 === 0){
+    updateDashboard(t);
+  }
 
   if (frame % 20 === 0){
     desks.forEach(function(d,i){ d.redrawScreen(t, i*1.3); });
