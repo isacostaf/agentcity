@@ -16,31 +16,75 @@
 
   #holoTooltip {
     position:absolute; left:0; top:0; z-index:7;
-    padding:10px 14px;
-    background:rgba(6,12,20,0.82);
-    border:1px solid rgba(89,214,255,0.45);
-    border-radius:6px;
-    font-family:'Courier New',monospace;
-    color:#cfeeff;
-    font-size:12px;
-    letter-spacing:1px;
+    width:300px;
     pointer-events:none;
     opacity:0;
-    transform:translate(-50%,-115%) scale(0.96);
-    transition:opacity .18s ease, transform .18s ease;
-    box-shadow:0 0 18px rgba(89,214,255,0.25), inset 0 0 12px rgba(89,214,255,0.06);
-    white-space:nowrap;
-    backdrop-filter:blur(3px);
+    transform:translate(-50%,0) scale(0.94);
+    transform-origin:top center;
+    transition:opacity .25s ease, transform .25s ease;
+    font-family:'Courier New',monospace;
+    color:#cfeeff;
   }
-  #holoTooltip.visible { opacity:1; transform:translate(-50%,-125%) scale(1); }
-  #holoTooltip .htTitle { font-weight:bold; color:#8fe3ff; font-size:13px; margin-bottom:7px; display:flex; align-items:center; gap:6px; text-transform:uppercase; }
-  #holoTooltip .htLive { color:#7cffa0; font-size:9px; animation: htBlink 1.1s infinite; }
-  #holoTooltip .htRow { display:flex; align-items:center; gap:9px; margin-top:4px; }
-  #holoTooltip .htRow .htVal { margin-left:auto; padding-left:14px; color:#eaf6ff; font-weight:bold; }
-  #holoTooltip .htDot { width:8px; height:8px; border-radius:50%; display:inline-block; box-shadow:0 0 6px currentColor; }
-  #holoTooltip .htDot.htActive { background:#7ee081; color:#7ee081; }
-  #holoTooltip .htDot.htError { background:#ff5c4d; color:#ff5c4d; }
-  #holoTooltip .htDot.htSleep { background:#8f9dff; color:#8f9dff; }
+  #holoTooltip.visible { opacity:1; transform:translate(-50%,0) scale(1); }
+
+  #holoTooltip .hpConnDot { width:6px; height:6px; margin:0 auto; border-radius:50%; background:#8fe3ff; box-shadow:0 0 8px #8fe3ff; }
+  #holoTooltip .hpConnector { width:1px; height:16px; margin:0 auto; background:linear-gradient(180deg, rgba(140,220,255,0.9), rgba(140,220,255,0.1)); }
+
+  #holoTooltip .hpFrame {
+    position:relative;
+    padding:18px 22px 14px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 30%, rgba(255,255,255,0.0) 55%),
+      linear-gradient(160deg, rgba(10,22,34,0.24), rgba(4,10,18,0.32));
+    backdrop-filter: blur(26px) saturate(170%);
+    -webkit-backdrop-filter: blur(26px) saturate(170%);
+    border:1px solid rgba(210,235,255,0.3);
+    border-radius:26px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 0 40px rgba(89,214,255,0.05);
+    overflow:hidden;
+  }
+  #holoTooltip .hpFrame::before {
+    content:''; position:absolute; left:0; right:0; top:-5%; height:2px;
+    background:linear-gradient(90deg, transparent, rgba(150,225,255,0.85), transparent);
+    animation: hpScan 2.6s linear infinite;
+  }
+  @keyframes hpScan { 0%{ top:-5%; } 100%{ top:105%; } }
+
+  /* small radiating tick marks near each rounded corner, like the reference HUD */
+  #holoTooltip .hpCorner { position:absolute; width:16px; height:16px; pointer-events:none; }
+  #holoTooltip .hpCorner::before, #holoTooltip .hpCorner::after { content:''; position:absolute; background:#9be6ff; box-shadow:0 0 5px #9be6ff; }
+  #holoTooltip .hpCorner.tl { top:7px; left:7px; }
+  #holoTooltip .hpCorner.tr { top:7px; right:7px; }
+  #holoTooltip .hpCorner.bl { bottom:7px; left:7px; }
+  #holoTooltip .hpCorner.br { bottom:7px; right:7px; }
+  #holoTooltip .hpCorner.tl::before, #holoTooltip .hpCorner.tr::before, #holoTooltip .hpCorner.bl::before, #holoTooltip .hpCorner.br::before { width:9px; height:2px; top:0; }
+  #holoTooltip .hpCorner.tl::after, #holoTooltip .hpCorner.tr::after, #holoTooltip .hpCorner.bl::after, #holoTooltip .hpCorner.br::after { width:2px; height:9px; left:0; }
+  #holoTooltip .hpCorner.tl::before, #holoTooltip .hpCorner.tl::after { left:0; top:0; }
+  #holoTooltip .hpCorner.tr::before { right:0; left:auto; }
+  #holoTooltip .hpCorner.tr::after { right:0; left:auto; top:0; }
+  #holoTooltip .hpCorner.bl::before { bottom:0; top:auto; }
+  #holoTooltip .hpCorner.bl::after { bottom:0; top:auto; left:0; }
+  #holoTooltip .hpCorner.br::before { bottom:0; top:auto; right:0; }
+  #holoTooltip .hpCorner.br::after { bottom:0; top:auto; right:0; }
+
+  #holoTooltip .hpTop { display:flex; align-items:baseline; justify-content:space-between; }
+  #holoTooltip .hpTitle { font-weight:bold; letter-spacing:2px; font-size:15px; color:#a9ecff; text-shadow:0 0 8px rgba(120,210,255,0.6); }
+  #holoTooltip .hpLive { font-size:9px; letter-spacing:1px; color:#7cffa0; display:flex; align-items:center; gap:4px; }
+  #holoTooltip .hpLive i { width:6px; height:6px; border-radius:50%; background:#7cffa0; box-shadow:0 0 6px #7cffa0; animation: htBlink 1.1s infinite; }
+  #holoTooltip .hpSub { font-size:9px; letter-spacing:1.5px; color:rgba(170,220,255,0.55); margin-bottom:11px; }
+
+  #holoTooltip .hpRow { margin-top:9px; }
+  #holoTooltip .hpRowTop { display:flex; align-items:center; gap:7px; font-size:11px; letter-spacing:1px; margin-bottom:4px; }
+  #holoTooltip .hpRowTop .htVal { margin-left:auto; font-weight:bold; color:#eaf6ff; }
+  #holoTooltip .hpDot { width:7px; height:7px; border-radius:50%; box-shadow:0 0 6px currentColor; flex:none; }
+  #holoTooltip .hpBarTrack { height:4px; background:rgba(140,190,220,0.15); border-radius:2px; overflow:hidden; }
+  #holoTooltip .hpBarFill { height:100%; width:0%; border-radius:2px; transition:width .4s ease; box-shadow:0 0 8px currentColor; }
+  #holoTooltip .hpDot.active, #holoTooltip .hpBarFill.active { background:#7ee081; color:#7ee081; }
+  #holoTooltip .hpDot.error, #holoTooltip .hpBarFill.error { background:#ff5c4d; color:#ff5c4d; }
+  #holoTooltip .hpDot.sleep, #holoTooltip .hpBarFill.sleep { background:#8f9dff; color:#8f9dff; }
+
+  #holoTooltip .hpFooter { margin-top:13px; padding-top:9px; border-top:1px solid rgba(140,210,255,0.2); font-size:9px; letter-spacing:1.5px; color:rgba(170,220,255,0.6); display:flex; justify-content:space-between; }
+
   @keyframes htBlink { 0%,100%{opacity:1;} 50%{opacity:.25;} }
 </style>
 </head>
@@ -51,14 +95,39 @@
   <div id="caption">Escritório <b>Setor 4</b> — visão do supervisor</div>
   <div id="loading"><div class="spin"></div><div>carregando a sala</div></div>
   <div id="holoTooltip">
-    <div class="htTitle">ORG AGENTS<span class="htLive">●</span></div>
-    <div class="htRow"><span class="htDot htActive"></span>ACTIVE<span class="htVal" id="htActiveVal">0</span></div>
-    <div class="htRow"><span class="htDot htError"></span>ERROR<span class="htVal" id="htErrorVal">0</span></div>
-    <div class="htRow"><span class="htDot htSleep"></span>SLEEPING<span class="htVal" id="htSleepVal">0</span></div>
+    <div class="hpConnDot"></div>
+    <div class="hpConnector"></div>
+    <div class="hpFrame">
+      <div class="hpCorner tl"></div>
+      <div class="hpCorner tr"></div>
+      <div class="hpCorner bl"></div>
+      <div class="hpCorner br"></div>
+      <div class="hpTop">
+        <span class="hpTitle">ORG AGENTS</span>
+        <span class="hpLive"><i></i>LIVE</span>
+      </div>
+      <div class="hpSub">AUTONOMOUS WORKFORCE MONITOR</div>
+
+      <div class="hpRow">
+        <div class="hpRowTop"><span class="hpDot active"></span>ACTIVE<span class="htVal" id="htActiveVal">0</span></div>
+        <div class="hpBarTrack"><div class="hpBarFill active" id="htActiveBar"></div></div>
+      </div>
+      <div class="hpRow">
+        <div class="hpRowTop"><span class="hpDot error"></span>ERROR<span class="htVal" id="htErrorVal">0</span></div>
+        <div class="hpBarTrack"><div class="hpBarFill error" id="htErrorBar"></div></div>
+      </div>
+      <div class="hpRow">
+        <div class="hpRowTop"><span class="hpDot sleep"></span>SLEEPING<span class="htVal" id="htSleepVal">0</span></div>
+        <div class="hpBarTrack"><div class="hpBarFill sleep" id="htSleepBar"></div></div>
+      </div>
+
+      <div class="hpFooter"><span id="htTotalLabel">TOTAL: 0</span><span>SETOR 4</span></div>
+    </div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
 "use strict";
@@ -138,33 +207,73 @@ var zzzTex = makeCanvasTexture(function(ctx,w,h){
 }, 160, 160);
 
 /* small, discreet physical name tag above each robot's head — same tech/HUD styling as the hologram hover card */
+function roundRectPath(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
 function buildNameTag(text){
-  var tagTex = makeCanvasTexture(function(ctx,w,h){
-    var pad=6, r=10;
-    ctx.beginPath();
-    ctx.moveTo(pad+r,pad);
-    ctx.arcTo(w-pad,pad,w-pad,h-pad,r);
-    ctx.arcTo(w-pad,h-pad,pad,h-pad,r);
-    ctx.arcTo(pad,h-pad,pad,pad,r);
-    ctx.arcTo(pad,pad,w-pad,pad,r);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(6,12,20,0.82)';
+  var fontSize=22, padX=16, dotR=4, gap=10, h=64;
+  var measureCv = document.createElement('canvas');
+  var mctx = measureCv.getContext('2d');
+  mctx.font = 'bold ' + fontSize + 'px monospace';
+  var textW = mctx.measureText(text).width;
+  var w = Math.ceil(padX*2 + dotR*2 + gap + textW); /* card grows/shrinks with the name */
+
+  var tagTex = makeCanvasTexture(function(ctx,cw,ch){
+    var r = ch*0.32, inset=3;
+    ctx.clearRect(0,0,cw,ch);
+
+    /* soft drop shadow so the glass reads against any background */
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
+    roundRectPath(ctx, inset,inset, cw-inset*2, ch-inset*2, r);
+    ctx.fillStyle = 'rgba(255,255,255,0.001)'; /* shadow-only pass */
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(89,214,255,0.55)';
+    ctx.restore();
+
+    /* frosted glass body */
+    roundRectPath(ctx, inset,inset, cw-inset*2, ch-inset*2, r);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fill();
+
+    /* glass sheen: brighter near the top, fading out */
+    var grad = ctx.createLinearGradient(0,inset,0,ch-inset);
+    grad.addColorStop(0,'rgba(255,255,255,0.30)');
+    grad.addColorStop(0.55,'rgba(255,255,255,0.06)');
+    grad.addColorStop(1,'rgba(255,255,255,0.0)');
+    roundRectPath(ctx, inset,inset, cw-inset*2, ch-inset*2, r);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    /* thin bright edge */
+    roundRectPath(ctx, inset,inset, cw-inset*2, ch-inset*2, r);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.stroke();
-    ctx.fillStyle = 'rgba(140,255,180,0.9)';
-    ctx.beginPath(); ctx.arc(pad+14, h/2, 4, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#8fe3ff';
-    ctx.font = 'bold 20px monospace';
+
+    /* status dot */
+    ctx.fillStyle = 'rgba(140,255,180,0.95)';
+    ctx.beginPath(); ctx.arc(padX+dotR, ch/2, dotR, 0, Math.PI*2); ctx.fill();
+
+    /* name */
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.font = 'bold ' + fontSize + 'px monospace';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(text, pad+26, h/2+1);
-  }, 220, 64);
+    ctx.fillText(text, padX+dotR*2+gap, ch/2+1);
+  }, w, h);
+
   var tagMat = new THREE.SpriteMaterial({ map:tagTex.texture, transparent:true, depthWrite:false });
   var sprite = new THREE.Sprite(tagMat);
-  sprite.scale.set(0.92, 0.27, 1);
+  var worldH = 0.27; /* fixed height; width follows the canvas's own aspect ratio, i.e. the name's length */
+  sprite.scale.set(worldH * (w/h), worldH, 1);
   return sprite;
-  }
+}
 
 /* ---------- materials ---------- */
 var matWall = new THREE.MeshStandardMaterial({ color:0x252a34, roughness:0.85, metalness:0.05 });
@@ -1220,6 +1329,93 @@ function buildPlatform(x, z){
 var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081];
 var positions = [ [-3.3,-2.0], [3.3,-2.0], [-3.3,1.9], [3.3,1.9]];
 
+/* ══════════════════════════════════════════════════════════════════════
+   ██  ÁREA DE LIGAÇÃO COM O SUPABASE — SÓ MEXA AQUI DENTRO DA CAIXA  ██
+   ══════════════════════════════════════════════════════════════════════
+
+   O QUE É ISSO:
+   Cada robô do cenário 3D (robo1, robo2, robo3, robo4, na mesma ordem
+   em que aparecem em ROBOT_MODES lá em cima) tem UM bloco { ... } aqui
+   embaixo. Esse bloco é a "ficha de identidade" do projeto Supabase
+   daquele robô — sem ela o código não sabe em qual banco perguntar.
+
+   ⚠️  IMPORTANTE: os 4 robôs são 4 PROJETOS SUPABASE DIFERENTES,
+   cada um numa conta/banco próprio — não é "a mesma tabela filtrada
+   por robô". Por isso cada bloco tem sua PRÓPRIA url, sua PRÓPRIA
+   anonKey e pode até ter nomes de tabela/coluna diferentes dos outros.
+   Nenhuma informação é compartilhada entre os blocos.
+
+   CADA BLOCO PRECISA DE 5 INFORMAÇÕES (todas vêm do painel do Supabase
+   do projeto daquele robô — e SÓ daquele robô):
+
+     1. url           → Project URL          (barra de endereço do
+                                                dashboard, ou botão
+                                                "Connect")
+     2. anonKey        → chave pública        (Settings > API Keys >
+                                                anon / publishable key)
+     3. tabela         → nome da tabela       (Table Editor)
+     4. colunaData     → coluna com a data    (Table Editor)
+     5. colunaStatus   → coluna com o status  (Table Editor)
+
+   Deixe em branco ("") o que ainda não tiver — o código já sabe pular
+   um robô incompleto sem quebrar os outros.
+   ══════════════════════════════════════════════════════════════════════ */
+
+var ROBOS = [
+
+  /* ───────────────────────── ROBÔ 1 (robo1) ─────────────────────────
+     Projeto Supabase PRÓPRIO — independente dos robôs 2, 3 e 4
+     Status: ✅ COMPLETO                                               */
+  {
+    url:          "https://aqrzrmozebujyidicitn.supabase.co",
+    anonKey:      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxcnpybW96ZWJ1anlpZGljaXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNjkxMTcsImV4cCI6MjA5Mzc0NTExN30.tXXMo4yqLL6k0__KBQTa2cEP1TCzlxCQgTQjjvxSJaw",
+    tabela:       "pendencias_envio",
+    colunaData:   "data",
+    colunaStatus: "status",
+    nome:         "Radar Colegiados",
+  },
+
+  /* ───────────────────────── ROBÔ 2 (robo2) ─────────────────────────
+     Projeto Supabase PRÓPRIO — independente dos robôs 1, 3 e 4
+     Status: ⛔ INCOMPLETO — preencha as 5 linhas abaixo               */
+  {
+    url:          "https://xmbrvycvtqparwxpmany.supabase.co",   // <-- FALTA PREENCHER
+    anonKey:      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtYnJ2eWN2dHFwYXJ3eHBtYW55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NTcxNTYsImV4cCI6MjA5ODAzMzE1Nn0.kHnkGcIUsYyDphIt-ywoS5yLYmPhjIgaZpnOsWfKbvg",   // <-- FALTA PREENCHER
+    tabela:       "execucoes",   // <-- FALTA PREENCHER
+    colunaData:   "data",   // <-- FALTA PREENCHER
+    colunaStatus: "sucesso_diario",   // <-- FALTA PREENCHER
+    nome:         "Push Diretora",
+  },
+
+  /* ───────────────────────── ROBÔ 3 (robo3) ─────────────────────────
+     Projeto Supabase PRÓPRIO — independente dos robôs 1, 2 e 4
+     Status: ⛔ INCOMPLETO — preencha as 5 linhas abaixo               */
+  {
+    url:          "",   // <-- FALTA PREENCHER
+    anonKey:      "",   // <-- FALTA PREENCHER
+    tabela:       "",   // <-- FALTA PREENCHER
+    colunaData:   "",   // <-- FALTA PREENCHER
+    colunaStatus: "",   // <-- FALTA PREENCHER
+    nome:         "Nome 3",
+  },
+
+  /* ───────────────────────── ROBÔ 4 (robo4) ─────────────────────────
+     Projeto Supabase PRÓPRIO — independente dos robôs 1, 2 e 3
+     Status: ⛔ INCOMPLETO — preencha as 5 linhas abaixo               */
+  {
+    url:          "",   // <-- FALTA PREENCHER
+    anonKey:      "",   // <-- FALTA PREENCHER
+    tabela:       "",   // <-- FALTA PREENCHER
+    colunaData:   "",   // <-- FALTA PREENCHER
+    colunaStatus: "",   // <-- FALTA PREENCHER
+    nome:         "Nome 4",
+  },
+
+];
+/* ═══════════════════════ FIM DA ÁREA DE LIGAÇÃO ═══════════════════════
+   Daqui pra baixo é só lógica pronta — não precisa mexer.
+   ══════════════════════════════════════════════════════════════════════ */
+
 /* ---------- robot mode assignment ----------
    Set each robot's mode here — order matches the desks in `positions` above
    (robo1 = first desk, robo2 = second desk, ...).
@@ -1227,10 +1423,10 @@ var positions = [ [-3.3,-2.0], [3.3,-2.0], [-3.3,1.9], [3.3,1.9]];
    'sleepingmode' (head resting on the desk), 'errormode' (malfunctioning).
    To add a new mode: write a function next to modeWorking/modeIdle below
    (search for "robot behavior modes") and list it in ROBOT_MODE_HANDLERS. */
-var robo1 = 'workingmode';
-var robo2 = 'errormode';
-var robo3 = 'sleepingmode';
-var robo4 = 'workingmode';
+var robo1 = 'idlemode';
+var robo2 = 'idlemode';
+var robo3 = 'idlemode';
+var robo4 = 'idlemode';
 // var robo5 = 'workingmode';
 // var robo6 = 'workingmode';
 var ROBOT_MODES = [robo1, robo2, robo3, robo4];
@@ -1260,7 +1456,7 @@ positions.forEach(function(p, i){
   /* no extra rotation: the robot's built-in forward direction now faces the camera */
   room.add(robotObj.group);
 
-  var nameTag = buildNameTag('AGENT-' + String(i+1).padStart(2,'0'));
+  var nameTag = buildNameTag(ROBOS[i].nome);
   robotObj.group.add(nameTag);
   robotObj.nameTag = nameTag;
 
@@ -1314,6 +1510,46 @@ positions.forEach(function(p, i){
   room.add(lamp.target);
   robotObj.lamp = lamp;
 });
+
+
+function hojeISO(){
+  var d = new Date();
+  var tz = d.getTimezoneOffset() * 60000;
+  return new Date(d - tz).toISOString().slice(0, 10); // YYYY-MM-DD local
+}
+
+function statusParaModo(status, agora){
+  var s = (status || "").toLowerCase().trim();
+  if (s === "enviado") return "workingmode";
+  if (s === "pendente") return "sleepingmode";
+  // sem dado hoje: depois das 11h vira error, antes das 11h fica idle (parado, aguardando)
+  return agora.getHours() >= 11 ? "errormode" : "idlemode";
+}
+
+async function buscarStatus(cfg){
+  if (!cfg || !cfg.url || !cfg.anonKey) return null; // ligação ainda incompleta: pula sem dar erro
+  try {
+    var client = window.supabase.createClient(cfg.url, cfg.anonKey);
+    var resp = await client
+      .from(cfg.tabela)
+      .select(cfg.colunaStatus)
+      .eq(cfg.colunaData, hojeISO())
+      .maybeSingle();
+    if (resp.error){ console.error("Erro Supabase:", resp.error); return null; }
+    return resp.data ? resp.data[cfg.colunaStatus] : null;
+  } catch(e){ console.error("Erro ao buscar status:", e); return null; }
+}
+
+async function atualizarModosDosRobos(){
+  var agora = new Date();
+  for (var i = 0; i < robots.length; i++){
+    var status = await buscarStatus(ROBOS[i]);
+    robots[i].mode = statusParaModo(status, agora);
+  }
+}
+
+atualizarModosDosRobos();
+setInterval(atualizarModosDosRobos, 60 * 1000); /* reconsulta a cada 1 min */
 
 /* small decor: a plant near back wall */
 function buildPlant(x,z){
@@ -1380,35 +1616,49 @@ function buildHoloPillar(x,z){
 }
 var holoPillar = buildHoloPillar(0, -0.45);
 
-/* hover the hologram ball -> show a live "org agents" readout right there, tech/HUD styled */
-(function(){
-  var raycaster = new THREE.Raycaster();
-  var ndc = new THREE.Vector2();
-  var tooltipEl = document.getElementById('holoTooltip');
-  var activeValEl = document.getElementById('htActiveVal');
-  var errorValEl = document.getElementById('htErrorVal');
-  var sleepValEl = document.getElementById('htSleepVal');
+/* hover the hologram ball -> open a holographic readout panel below it, tech/HUD styled.
+   The panel is anchored to the ball's own on-screen position (re-projected every frame,
+   since the camera has a small idle sway) rather than following the mouse cursor. */
+var holoRaycaster = new THREE.Raycaster();
+var holoMouseNDC = new THREE.Vector2(-999, -999); /* starts off-screen: nothing hovered until the mouse actually moves */
+var holoTooltipEl = document.getElementById('holoTooltip');
+var holoBallWorld = new THREE.Vector3();
+var holoHovering = false;
 
-  window.addEventListener('pointermove', function(e){
-    var rect = canvas.getBoundingClientRect();
-    var px = e.clientX - rect.left, py = e.clientY - rect.top;
-    ndc.x = (px/rect.width)*2 - 1;
-    ndc.y = -(py/rect.height)*2 + 1;
-    raycaster.setFromCamera(ndc, camera);
-    var hit = raycaster.intersectObject(holoPillar.hoverTarget, false);
-    if (hit.length){
-      var counts = computeAgentCounts();
-      activeValEl.textContent = counts.active;
-      errorValEl.textContent = counts.error;
-      sleepValEl.textContent = counts.sleep;
-      tooltipEl.style.left = px + 'px';
-      tooltipEl.style.top = py + 'px';
-      tooltipEl.classList.add('visible');
-    } else {
-      tooltipEl.classList.remove('visible');
-    }
-  });
-})();
+window.addEventListener('pointermove', function(e){
+  var rect = canvas.getBoundingClientRect();
+  holoMouseNDC.x = ((e.clientX-rect.left)/rect.width)*2 - 1;
+  holoMouseNDC.y = -((e.clientY-rect.top)/rect.height)*2 + 1;
+});
+window.addEventListener('pointerleave', function(){ holoMouseNDC.set(-999,-999); });
+
+function updateHoloHover(){
+  holoRaycaster.setFromCamera(holoMouseNDC, camera);
+  var hit = holoRaycaster.intersectObject(holoPillar.hoverTarget, false);
+  holoHovering = hit.length > 0;
+
+  if (!holoHovering){
+    holoTooltipEl.classList.remove('visible');
+    return;
+  }
+
+  var counts = computeAgentCounts();
+  var total = Math.max(1, counts.total);
+  document.getElementById('htActiveVal').textContent = counts.active;
+  document.getElementById('htErrorVal').textContent = counts.error;
+  document.getElementById('htSleepVal').textContent = counts.sleep;
+  document.getElementById('htActiveBar').style.width = (counts.active/total*100) + '%';
+  document.getElementById('htErrorBar').style.width = (counts.error/total*100) + '%';
+  document.getElementById('htSleepBar').style.width = (counts.sleep/total*100) + '%';
+  document.getElementById('htTotalLabel').textContent = 'TOTAL: ' + counts.total;
+
+  holoPillar.holo.getWorldPosition(holoBallWorld);
+  holoBallWorld.project(camera);
+  var rect = canvas.getBoundingClientRect();
+  holoTooltipEl.style.left = ((holoBallWorld.x*0.5+0.5) * rect.width) + 'px';
+  holoTooltipEl.style.top = ((1-(holoBallWorld.y*0.5+0.5)) * rect.height + 60) + 'px';
+  holoTooltipEl.classList.add('visible');
+}
 
 /* ---------- fixed supervisor overview camera ---------- */
 /* Keeps all 4 desks in frame at once, like a manager watching the room.
@@ -1791,6 +2041,7 @@ function animate(){
   }
 
   updateCamera(t);
+  updateHoloHover();
   renderer.render(scene, camera);
 }
 
