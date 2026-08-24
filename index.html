@@ -85,6 +85,12 @@
 
   #holoTooltip .hpFooter { margin-top:13px; padding-top:9px; border-top:1px solid rgba(140,210,255,0.2); font-size:9px; letter-spacing:1.5px; color:rgba(170,220,255,0.6); display:flex; justify-content:space-between; }
 
+  #holoTooltip .hpRawList { margin-top:9px; padding-top:9px; border-top:1px solid rgba(140,210,255,0.2); }
+  #holoTooltip .hpRawTitle { font-size:9px; letter-spacing:1.5px; color:rgba(170,220,255,0.55); margin-bottom:6px; }
+  #holoTooltip .hpRawRow { display:flex; justify-content:space-between; align-items:center; font-size:10px; letter-spacing:0.5px; padding:3px 0; }
+  #holoTooltip .hpRawRow .hrName { color:rgba(200,230,255,0.75); }
+  #holoTooltip .hpRawRow .hrVal { font-weight:bold; color:#eaf6ff; max-width:150px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
   @keyframes htBlink { 0%,100%{opacity:1;} 50%{opacity:.25;} }
 </style>
 </head>
@@ -120,7 +126,7 @@
         <div class="hpRowTop"><span class="hpDot sleep"></span>SLEEPING<span class="htVal" id="htSleepVal">0</span></div>
         <div class="hpBarTrack"><div class="hpBarFill sleep" id="htSleepBar"></div></div>
       </div>
-
+      <div class="hpRawList" id="htRawList"></div>
       <div class="hpFooter"><span id="htTotalLabel">TOTAL: 0</span><span>SETOR 4</span></div>
     </div>
   </div>
@@ -1391,12 +1397,12 @@ var ROBOS = [
      Projeto Supabase PRÓPRIO — independente dos robôs 1, 2 e 4
      Status: ⛔ INCOMPLETO — preencha as 5 linhas abaixo               */
   {
-    url:          "",   // <-- FALTA PREENCHER
-    anonKey:      "",   // <-- FALTA PREENCHER
-    tabela:       "",   // <-- FALTA PREENCHER
-    colunaData:   "",   // <-- FALTA PREENCHER
-    colunaStatus: "",   // <-- FALTA PREENCHER
-    nome:         "Nome 3",
+    url:          "https://kuaivyfsaubegblrjyse.supabase.co",   // <-- FALTA PREENCHER
+    anonKey:      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YWl2eWZzYXViZWdibHJqeXNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5NjAxOTMsImV4cCI6MjA5OTUzNjE5M30.uOiOOQDcJK8V4xjfcGmbvlSe9jMkhnsTJV9HQfNOGW8",   // <-- FALTA PREENCHER
+    tabela:       "execucao",   // <-- FALTA PREENCHER
+    colunaData:   "data",   // <-- FALTA PREENCHER
+    colunaStatus: "sucesso_diario",   // <-- FALTA PREENCHER
+    nome:         "Push Remunerado",
   },
 
   /* ───────────────────────── ROBÔ 4 (robo4) ─────────────────────────
@@ -1408,7 +1414,7 @@ var ROBOS = [
     tabela:       "",   // <-- FALTA PREENCHER
     colunaData:   "",   // <-- FALTA PREENCHER
     colunaStatus: "",   // <-- FALTA PREENCHER
-    nome:         "Nome 4",
+    nome:         "Vigência",
   },
 
 ];
@@ -1542,9 +1548,18 @@ async function buscarStatus(cfg){
 
 async function atualizarModosDosRobos(){
   var agora = new Date();
+  
   for (var i = 0; i < robots.length; i++){
+
+    // VIGENCIA SEMPRE TRABALHANDO - nao tem banco
+    if (i === 3) {
+      robots[i].mode = "workingmode";
+      continue;
+    }
+    
     var status = await buscarStatus(ROBOS[i]);
     robots[i].mode = statusParaModo(status, agora);
+    robots[i].statusRaw = status; // guarda exatamente o que veio de colunaStatus
   }
 }
 
@@ -1651,6 +1666,19 @@ function updateHoloHover(){
   document.getElementById('htErrorBar').style.width = (counts.error/total*100) + '%';
   document.getElementById('htSleepBar').style.width = (counts.sleep/total*100) + '%';
   document.getElementById('htTotalLabel').textContent = 'TOTAL: ' + counts.total;
+
+  // imprimir no holo oq retorna da tabela
+  // var rawListEl = document.getElementById('htRawList');
+  // var rawHtml = '<div class="hpRawTitle">STATUS BRUTO (BANCO)</div>';
+  // robots.forEach(function(r, i){
+  //   var nome = (ROBOS[i] && ROBOS[i].nome) ? ROBOS[i].nome : ('ROBO ' + (i+1));
+  //   var val;
+  //   if (r.statusRaw === undefined) val = '...';
+  //   else if (r.statusRaw === null) val = 'SEM DADO';
+  //   else val = String(r.statusRaw).toUpperCase();
+  //   rawHtml += '<div class="hpRawRow"><span class="hrName">' + nome + '</span><span class="hrVal">' + val + '</span></div>';
+  // });
+  // rawListEl.innerHTML = rawHtml;
 
   holoPillar.holo.getWorldPosition(holoBallWorld);
   holoBallWorld.project(camera);
