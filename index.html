@@ -212,6 +212,17 @@ var zzzTex = makeCanvasTexture(function(ctx,w,h){
   ctx.save(); ctx.translate(w*0.8,h*0.22); ctx.rotate(-0.2); ctx.font = 'bold 58px sans-serif'; ctx.fillText('z',0,0); ctx.restore();
 }, 160, 160);
 
+/* soft round smoke puff, used by the 'errormode' mode's monitor smoke plume */
+var smokeTex = makeCanvasTexture(function(ctx,w,h){
+  var g = ctx.createRadialGradient(w/2,h/2,0, w/2,h/2,w/2);
+  g.addColorStop(0,   'rgba(60,60,66,0.95)');
+  g.addColorStop(0.4, 'rgba(50,50,56,0.7)');
+  g.addColorStop(0.75,'rgba(40,40,46,0.3)');
+  g.addColorStop(1,   'rgba(40,40,46,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,w,h);
+}, 128, 128);
+
 /* small, discreet physical name tag above each robot's head — same tech/HUD styling as the hologram hover card */
 function roundRectPath(ctx,x,y,w,h,r){
   ctx.beginPath();
@@ -1446,6 +1457,8 @@ var ROBOT_MODES = [robo1, robo2, robo3, robo4];
 var robots = [];
 var desks = [];
 var robotClickTargets = []; /* invisible hitboxes, one per robot, used to open its dashboard link on click */
+var SMOKE_COUNT = 10; /* puff sprites per robot's error-mode monitor smoke plume */
+var SMOKE_LIFE = 2.4;  /* seconds for one puff to rise, grow and fade out */
 
 positions.forEach(function(p, i){
   var platformZ = p[1] - 0.2;
@@ -1508,6 +1521,30 @@ positions.forEach(function(p, i){
   floorPuddle.visible = false;
   room.add(floorPuddle);
   robotObj.floorPuddle = floorPuddle;
+
+  /* big, chunky smoke plume billowing off the monitor for the 'errormode' mode —
+     a pool of puff sprites recycled every frame (see updateSmoke below), attached
+     to the desk group so it stays anchored right over the screen. */
+  robotObj.smoke = [];
+  for (var s = 0; s < SMOKE_COUNT; s++){
+    var puffMat = new THREE.SpriteMaterial({ map:smokeTex.texture, transparent:true, depthWrite:false, opacity:0 });
+    var puff = new THREE.Sprite(puffMat);
+    puff.position.set(0, 1.32, -0.26);
+    puff.scale.set(0.01, 0.01, 1);
+    puff.visible = false;
+    deskObj.group.add(puff);
+    robotObj.smoke.push({
+      sprite:   puff,
+      seed:     (s / SMOKE_COUNT) * SMOKE_LIFE + i * 0.37, /* staggers puffs evenly along the life cycle */
+      sizeMul:  0.8 + Math.random()*0.7,
+      driftX:   (Math.random()*2 - 1) * 0.22,
+      driftFreq: 1.3 + Math.random()*1.6
+    });
+  }
+  var smokeGlow = new THREE.PointLight(0xff3b30, 0, 1.6, 2);
+  smokeGlow.position.set(0, 1.32, -0.26);
+  deskObj.group.add(smokeGlow);
+  robotObj.smokeGlow = smokeGlow;
 
   robotObj.drinking = false;
   robotObj.drinkStart = 0;
@@ -2058,6 +2095,37 @@ function modeError(r, t){
   r.floorPuddle.visible = true;
 }
 
+/* big, chunky smoke plume billowing off the monitor while a robot is in 'errormode'.
+   Runs every frame for every robot (not just error ones) so puffs already in flight
+   fade out smoothly instead of vanishing the instant the mode changes. */
+function updateSmoke(r, t){
+  var active = r.mode === 'errormode';
+  r.smoke.forEach(function(p){
+    var spr = p.sprite;
+    if (active){
+      var lt = ((t + p.seed) % SMOKE_LIFE) / SMOKE_LIFE; /* 0 = just born at the screen, 1 = fully dissipated */
+      var y = 1.32 + lt*2.1;
+      var sway = Math.sin(t*p.driftFreq + p.seed*2.1) * (0.05 + lt*0.28);
+      spr.position.set(p.driftX*0.4 + sway, y, -0.26 + Math.sin(t*1.7+p.seed)*0.04);
+      var scale = (0.12 + lt*1.75) * p.sizeMul;
+      spr.scale.set(scale, scale, 1);
+      spr.material.rotation = p.seed*3 + t*0.5;
+      var fadeIn  = Math.min(1, lt/0.12);
+      var fadeOut = 1 - Math.max(0, (lt-0.55)/0.45);
+      spr.material.opacity = Math.max(0, fadeIn*fadeOut) * 0.92;
+      spr.visible = spr.material.opacity > 0.01;
+    } else if (spr.visible){
+      spr.material.opacity = Math.max(0, spr.material.opacity - 0.06);
+      spr.visible = spr.material.opacity > 0.01;
+    }
+  });
+  if (r.smokeGlow){
+    var targetIntensity = active ? (1.0 + Math.random()*0.6) : 0;
+    r.smokeGlow.intensity += (targetIntensity - r.smokeGlow.intensity) * (active ? 0.35 : 0.12);
+    if (r.smokeGlow.intensity < 0.02) r.smokeGlow.intensity = 0;
+  }
+}
+
 var ROBOT_MODE_HANDLERS = {
   workingmode: modeWorking,
   idlemode: modeIdle,
@@ -2073,6 +2141,7 @@ function animate(){
   robots.forEach(function(r){
     var handler = ROBOT_MODE_HANDLERS[r.mode] || modeWorking;
     handler(r, t);
+    updateSmoke(r, t);
 
     /* keep the little name tag on the opposite side of the desk */
     r.headPivot.getWorldPosition(__nameTagHeadWorld);
