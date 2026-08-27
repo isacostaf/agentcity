@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Sala dos Robôs</title>
+<title>Cockpit</title>
 <style>
   html, body { margin:0; padding:0; width:100%; height:100%; background:#0a0c10; overflow:hidden; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; }
   #wrap { position:relative; width:100%; height:100vh; }
@@ -98,7 +98,7 @@
 <div id="wrap">
   <canvas id="c"></canvas>
   <div id="vignette"></div>
-  <div id="caption">Escritório <b>Setor 4</b> — visão do supervisor</div>
+  <div id="caption">Escritório <b>DEORG SEORI SG</b> — visão do gestor</div>
   <div id="loading"><div class="spin"></div><div>carregando a sala</div></div>
   <div id="holoTooltip">
     <div class="hpConnDot"></div>
@@ -109,21 +109,21 @@
       <div class="hpCorner bl"></div>
       <div class="hpCorner br"></div>
       <div class="hpTop">
-        <span class="hpTitle">ORG AGENTS</span>
-        <span class="hpLive"><i></i>LIVE</span>
+        <span class="hpTitle">AGENTES</span>
+        <span class="hpLive"><i></i>AO VIVO</span>
       </div>
-      <div class="hpSub">AUTONOMOUS WORKFORCE MONITOR</div>
+      <div class="hpSub">MONITOR DE FORÇA DE TRABALHO AUTÔNOMA</div>
 
       <div class="hpRow">
-        <div class="hpRowTop"><span class="hpDot active"></span>ACTIVE<span class="htVal" id="htActiveVal">0</span></div>
+        <div class="hpRowTop"><span class="hpDot active"></span>ATIVOS<span class="htVal" id="htActiveVal">0</span></div>
         <div class="hpBarTrack"><div class="hpBarFill active" id="htActiveBar"></div></div>
       </div>
       <div class="hpRow">
-        <div class="hpRowTop"><span class="hpDot error"></span>ERROR<span class="htVal" id="htErrorVal">0</span></div>
+        <div class="hpRowTop"><span class="hpDot error"></span>ERRO<span class="htVal" id="htErrorVal">0</span></div>
         <div class="hpBarTrack"><div class="hpBarFill error" id="htErrorBar"></div></div>
       </div>
       <div class="hpRow">
-        <div class="hpRowTop"><span class="hpDot sleep"></span>SLEEPING<span class="htVal" id="htSleepVal">0</span></div>
+        <div class="hpRowTop"><span class="hpDot sleep"></span>DORMINDO<span class="htVal" id="htSleepVal">0</span></div>
         <div class="hpBarTrack"><div class="hpBarFill sleep" id="htSleepBar"></div></div>
       </div>
       <div class="hpRawList" id="htRawList"></div>
@@ -363,14 +363,14 @@ function drawDashboard(ctx, w, h, t){
   /* title + live indicator */
   ctx.textBaseline = 'top'; ctx.textAlign = 'left';
   ctx.fillStyle = '#8fe3ff'; ctx.font = 'bold 34px monospace';
-  ctx.fillText('DEORG AGENTS', 26, 18);
+  ctx.fillText('AGENTES', 26, 18);
   ctx.fillStyle = 'rgba(140,220,255,0.65)'; ctx.font = '13px monospace';
-  ctx.fillText('AUTONOMOUS WORKFORCE MONITOR', 26, 58);
+  ctx.fillText('MONITOR DE FORÇA DE TRABALHO AUTÔNOMA', 26, 58);
   var liveBlink = 0.5 + 0.5*Math.sin(t*4);
   ctx.fillStyle = 'rgba(120,255,160,' + (0.4+0.6*liveBlink).toFixed(2) + ')';
   ctx.beginPath(); ctx.arc(320, 30, 6, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = 'rgba(140,255,180,0.85)'; ctx.font = '13px monospace';
-  ctx.fillText('LIVE', 334, 24);
+  ctx.fillText('AO VIVO', 334, 24);
 
   /* uptime + active-agent count (top right) */
   var secs = Math.floor(t);
@@ -379,10 +379,10 @@ function drawDashboard(ctx, w, h, t){
   var ss = String(secs%60).padStart(2,'0');
   ctx.textAlign = 'right';
   ctx.fillStyle = '#cfeeff'; ctx.font = '15px monospace';
-  ctx.fillText('UPTIME  ' + hh+':'+mm+':'+ss, w-26, 22);
+  ctx.fillText('TEMPO ATIVO  ' + hh+':'+mm+':'+ss, w-26, 22);
   var liveCounts = computeAgentCounts();
   ctx.fillStyle = '#8fe3ff';
-  ctx.fillText('AGENTS ACTIVE  ' + liveCounts.active + '/' + robots.length, w-26, 46);
+  ctx.fillText('AGENTES ATIVOS  ' + liveCounts.active + '/' + robots.length, w-26, 46);
   ctx.textAlign = 'left';
 
   /* three separate pie charts — one per agent status, nothing else on the panel */
@@ -391,9 +391,9 @@ function drawDashboard(ctx, w, h, t){
   var sleepN  = liveCounts.sleep;
   var total   = Math.max(1, robots.length);
   var pieData = [
-    { label:'ACTIVE',   n:activeN, color:'#7ee081' },
-    { label:'ERROR',    n:errorN,  color:'#ff5c4d' },
-    { label:'SLEEPING', n:sleepN,  color:'#8f9dff' }
+    { label:'ATIVOS',   n:activeN, color:'#7ee081' },
+    { label:'ERRO',     n:errorN,  color:'#ff5c4d' },
+    { label:'DORMINDO', n:sleepN,  color:'#8f9dff' }
   ];
 
   var areaTop=90, areaBottom=h-16, areaH=areaBottom-areaTop;
@@ -1091,8 +1091,8 @@ function buildPrinterStation(x, z, rotY){
   g.add(panel);
   var panelTex = makeCanvasTexture(function(ctx,w,h){
     ctx.fillStyle = '#07220f'; ctx.fillRect(0,0,w,h);
-    ctx.fillStyle = '#63e08a'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
-    ctx.fillText('PRINTING...', w/2, h/2+7);
+    ctx.fillStyle = '#63e08a'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('IMPRIMINDO...', w/2, h/2+7);
   }, 180,56);
   var panelMat = new THREE.MeshStandardMaterial({ map:panelTex.texture, emissiveMap:panelTex.texture, emissive:0xffffff, emissiveIntensity:0.85 });
   var panelScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.15,0.05), panelMat);
@@ -1362,6 +1362,8 @@ var positions = [ [-3.3,-2.0], [3.3,-2.0], [-3.3,1.9], [3.3,1.9]];
      3. tabela         → nome da tabela       (Table Editor)
      4. colunaData     → coluna com a data    (Table Editor)
      5. colunaStatus   → coluna com o status  (Table Editor)
+     6. link           → URL do app/dashboard daquele robô — clicar no
+                          robô na cena 3D abre esse link em nova aba.
 
    Deixe em branco ("") o que ainda não tiver — o código já sabe pular
    um robô incompleto sem quebrar os outros.
@@ -1379,6 +1381,7 @@ var ROBOS = [
     colunaData:   "data",
     colunaStatus: "status",
     nome:         "Radar Colegiados",
+    link:         "https://radarcolegiados.vercel.app/",
   },
 
   /* ───────────────────────── ROBÔ 2 (robo2) ─────────────────────────
@@ -1391,6 +1394,7 @@ var ROBOS = [
     colunaData:   "data",   // <-- FALTA PREENCHER
     colunaStatus: "sucesso_diario",   // <-- FALTA PREENCHER
     nome:         "Push Diretora",
+    link:         "https://pushdeorg.vercel.app/",
   },
 
   /* ───────────────────────── ROBÔ 3 (robo3) ─────────────────────────
@@ -1403,6 +1407,7 @@ var ROBOS = [
     colunaData:   "data",   // <-- FALTA PREENCHER
     colunaStatus: "sucesso_diario",   // <-- FALTA PREENCHER
     nome:         "Push Remunerado",
+    link:         "https://pushremunerados.vercel.app/",
   },
 
   /* ───────────────────────── ROBÔ 4 (robo4) ─────────────────────────
@@ -1415,6 +1420,7 @@ var ROBOS = [
     colunaData:   "",   // <-- FALTA PREENCHER
     colunaStatus: "",   // <-- FALTA PREENCHER
     nome:         "Vigência",
+    link:         "https://vigenciacolegiados-7oj5.onrender.com/",
   },
 
 ];
@@ -1439,6 +1445,7 @@ var ROBOT_MODES = [robo1, robo2, robo3, robo4];
 
 var robots = [];
 var desks = [];
+var robotClickTargets = []; /* invisible hitboxes, one per robot, used to open its dashboard link on click */
 
 positions.forEach(function(p, i){
   var platformZ = p[1] - 0.2;
@@ -1465,6 +1472,18 @@ positions.forEach(function(p, i){
   var nameTag = buildNameTag(ROBOS[i].nome);
   robotObj.group.add(nameTag);
   robotObj.nameTag = nameTag;
+
+  /* invisible click/hover hitbox covering the whole robot, used to open its dashboard link */
+  robotObj.link = ROBOS[i].link || '';
+  var clickHitbox = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 1.6, 0.6),
+    new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
+  );
+  clickHitbox.position.y = 0.8;
+  clickHitbox.userData.robotIndex = i;
+  robotObj.group.add(clickHitbox);
+  robotObj.clickHitbox = clickHitbox;
+  robotClickTargets.push(clickHitbox);
 
   /* coffee-drinking behaviour: pick the arm on the same side as this desk's cup */
   var drinkSide = (p[0] > 0) ? -1 : 1; /* matches mirrorCup logic in buildDesk */
@@ -1687,6 +1706,28 @@ function updateHoloHover(){
   holoTooltipEl.style.top = ((1-(holoBallWorld.y*0.5+0.5)) * rect.height + 60) + 'px';
   holoTooltipEl.classList.add('visible');
 }
+
+/* click a robot -> open its dashboard link in a new tab.
+   Reuses the same mouse-NDC tracking as the hologram hover above. Cursor turns
+   into a pointer while hovering a robot with a link, as a click affordance. */
+function updateRobotHoverCursor(){
+  holoRaycaster.setFromCamera(holoMouseNDC, camera);
+  var hit = holoRaycaster.intersectObjects(robotClickTargets, false);
+  canvas.style.cursor = (hit.length > 0 && robots[hit[0].object.userData.robotIndex].link) ? 'pointer' : '';
+}
+
+canvas.addEventListener('click', function(e){
+  var rect = canvas.getBoundingClientRect();
+  var ndc = new THREE.Vector2(
+    ((e.clientX-rect.left)/rect.width)*2 - 1,
+    -((e.clientY-rect.top)/rect.height)*2 + 1
+  );
+  holoRaycaster.setFromCamera(ndc, camera);
+  var hit = holoRaycaster.intersectObjects(robotClickTargets, false);
+  if (hit.length === 0) return;
+  var robot = robots[hit[0].object.userData.robotIndex];
+  if (robot && robot.link) window.open(robot.link, '_blank', 'noopener');
+});
 
 /* ---------- fixed supervisor overview camera ---------- */
 /* Keeps all 4 desks in frame at once, like a manager watching the room.
@@ -2070,6 +2111,7 @@ function animate(){
 
   updateCamera(t);
   updateHoloHover();
+  updateRobotHoverCursor();
   renderer.render(scene, camera);
 }
 
