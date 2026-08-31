@@ -360,20 +360,69 @@ function computeAgentCounts(){
   return { active:active, error:error, sleep:sleep, total:robots.length };
 }
 
-/* one row of the dashboard: a label glued to the left, a glowing Orbitron number glued to the
-   right, inside a thin bordered card. Built as its own function so new stats later are just
-   another entry in the `stats` array below — not a redesign each time. */
+/* HUD-style corner brackets framing the whole panel, tech/sci-fi readout look */
+function drawCornerBrackets(ctx, w, h, glow){
+  var m = 10, len = 24;
+  ctx.strokeStyle = 'rgba(140,220,255,' + (0.45+0.25*glow).toFixed(2) + ')';
+  ctx.lineWidth = 2;
+  function bracket(x, y, dx, dy){
+    ctx.beginPath();
+    ctx.moveTo(x, y + dy*len);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + dx*len, y);
+    ctx.stroke();
+  }
+  bracket(m, m, 1, 1);
+  bracket(w-m, m, -1, 1);
+  bracket(m, h-m, 1, -1);
+  bracket(w-m, h-m, -1, -1);
+}
+
+/* one row of the dashboard: a rounded, glass-like card with a colored accent bar and a small
+   tech "▸" marker on the left, a label, and a glowing Orbitron number a FIXED distance after
+   the label ends — however long the label is. Built as its own function so new stats later
+   are just another entry in the `stats` array below — not a redesign each time. */
 function drawStatRow(ctx, x, y, w, h, label, value, color, t){
-  ctx.fillStyle = 'rgba(255,255,255,0.03)';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = 'rgba(140,220,255,0.18)';
+  var r = 12;
+
+  /* glass card body */
+  var grad = ctx.createLinearGradient(x, y, x, y+h);
+  grad.addColorStop(0, 'rgba(255,255,255,0.055)');
+  grad.addColorStop(1, 'rgba(255,255,255,0.015)');
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  /* colored accent bar, clipped to the card so its corners match the rounding */
+  ctx.save();
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.clip();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.9;
+  ctx.fillRect(x, y, 4, h);
+  ctx.restore();
+
+  /* border, brighter and glowing a touch */
+  roundRectPath(ctx, x+0.5, y+0.5, w-1, h-1, r);
+  ctx.strokeStyle = 'rgba(140,220,255,0.28)';
   ctx.lineWidth = 1;
-  ctx.strokeRect(x+0.5, y+0.5, w-1, h-1);
+  ctx.stroke();
 
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(140,220,255,0.8)';
+
+  /* small tech marker before the label */
+  var markerX = x + 22;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(markerX, y+h/2-4);
+  ctx.lineTo(markerX+7, y+h/2);
+  ctx.lineTo(markerX, y+h/2+4);
+  ctx.closePath();
+  ctx.fill();
+
+  var labelX = markerX + 16;
+  ctx.fillStyle = 'rgba(200,232,255,0.85)';
   ctx.font = '18px monospace';
-  var labelX = x+22;
   ctx.fillText(label, labelX, y+h/2+1);
   var labelW = ctx.measureText(label).width;
 
@@ -385,7 +434,7 @@ function drawStatRow(ctx, x, y, w, h, label, value, color, t){
 
   ctx.save();
   ctx.shadowColor = color;
-  ctx.shadowBlur = 16 + pulse*10;
+  ctx.shadowBlur = 13 + pulse*9; /* glow leve, sem ofuscar a leitura do número */
   ctx.fillStyle = color;
   ctx.fillText(numText, numX, y+h/2+2);
   ctx.shadowBlur = 0;
@@ -394,24 +443,73 @@ function drawStatRow(ctx, x, y, w, h, label, value, color, t){
 }
 
 function drawDashboard(ctx, w, h, t){
-  ctx.fillStyle = '#050a12';
+  /* deep gradient backdrop instead of a flat fill */
+  var bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#070d18');
+  bg.addColorStop(1, '#02040a');
+  ctx.fillStyle = bg;
   ctx.fillRect(0,0,w,h);
 
   /* faint tech grid */
-  ctx.strokeStyle = 'rgba(90,150,190,0.08)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(90,150,190,0.07)'; ctx.lineWidth = 1;
   for (var gx=0; gx<w; gx+=32){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,h); ctx.stroke(); }
   for (var gy=0; gy<h; gy+=28){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(w,gy); ctx.stroke(); }
 
   /* slow scanline for a "live terminal" feel */
   var scanY = (t*46) % h;
-  ctx.fillStyle = 'rgba(140,220,255,0.05)';
+  ctx.fillStyle = 'rgba(140,220,255,0.045)';
   ctx.fillRect(0, scanY, w, 3);
 
-  /* title, centered at the top */
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#8fe3ff'; ctx.font = 'bold 24px monospace';
-  ctx.fillText('Dashboard', w/2, 16);
-  ctx.textAlign = 'left';
+  var pulse = 0.5 + 0.5*Math.sin(t*2.2);
+
+  /* thin outer frame + HUD corner brackets */
+  ctx.strokeStyle = 'rgba(140,220,255,0.1)'; ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, w-1, h-1);
+  drawCornerBrackets(ctx, w, h, pulse);
+
+  /* title block: flanking lines with pulsing end-dots, big letter-spaced glowing title */
+  var title = 'DASHBOARD';
+  var titleY = 38, cx = w/2;
+  ctx.font = '900 28px Orbitron, monospace';
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '9px';
+  var titleW = ctx.measureText(title).width;
+
+  var lineY = titleY - 9, lineGap = 22, lineLen = 110;
+  ctx.strokeStyle = 'rgba(140,220,255,' + (0.3+0.25*pulse).toFixed(2) + ')';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - titleW/2 - lineGap - lineLen, lineY);
+  ctx.lineTo(cx - titleW/2 - lineGap, lineY);
+  ctx.moveTo(cx + titleW/2 + lineGap, lineY);
+  ctx.lineTo(cx + titleW/2 + lineGap + lineLen, lineY);
+  ctx.stroke();
+  [cx - titleW/2 - lineGap, cx + titleW/2 + lineGap].forEach(function(dx){
+    ctx.beginPath(); ctx.arc(dx, lineY, 2.6, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(140,255,220,' + (0.55+0.45*pulse).toFixed(2) + ')';
+    ctx.fill();
+  });
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.save();
+  ctx.shadowColor = '#7fe3ff';
+  ctx.shadowBlur = 22 + pulse*10;
+  ctx.fillStyle = '#eef9ff';
+  ctx.fillText(title, cx, titleY);
+  ctx.shadowBlur = 0;
+  ctx.fillText(title, cx, titleY); /* crisp core under the glow */
+  ctx.restore();
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+  /* soft gradient divider under the title */
+  var divY = titleY + 16;
+  var padX = 24;
+  var divGrad = ctx.createLinearGradient(padX, 0, w-padX, 0);
+  divGrad.addColorStop(0,   'rgba(140,220,255,0)');
+  divGrad.addColorStop(0.5, 'rgba(140,220,255,0.45)');
+  divGrad.addColorStop(1,   'rgba(140,220,255,0)');
+  ctx.strokeStyle = divGrad; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padX, divY); ctx.lineTo(w-padX, divY); ctx.stroke();
 
   /* stat rows: one per line of data on the panel. Add more objects here later — each
      becomes its own row automatically, stacked top to bottom. */
@@ -421,7 +519,7 @@ function drawDashboard(ctx, w, h, t){
     { label:'push representações encontrou:', value:repN, color:repColor }
   ];
 
-  var padX = 24, rowH = 64, rowGap = 14, rowY = 60;
+  var rowH = 64, rowGap = 14, rowY = divY + 22;
   stats.forEach(function(s){
     drawStatRow(ctx, padX, rowY, w-padX*2, rowH, s.label, s.value, s.color, t);
     rowY += rowH + rowGap;
