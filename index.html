@@ -396,6 +396,23 @@ function drawDashboard(ctx, w, h, t){
   ctx.fillText('AGENTES ATIVOS  ' + liveCounts.active + '/' + robots.length, w-26, 46);
   ctx.textAlign = 'left';
 
+  /* banner: quantas representações o Radar Colegiados achou hoje — chamativo, pisca levemente quando > 0 */
+  var repN = representacoesHojeCount;
+  var repLabel = repN === 1 ? 'REPRESENTAÇÃO' : 'REPRESENTAÇÕES';
+  var repText = 'PUSH REPRESENTAÇÕES ENCONTROU HOJE: ' + repN + ' ' + repLabel;
+  var bannerY = 68, bannerH = 30;
+  var repPulse = 0.5 + 0.5*Math.sin(t*3);
+  ctx.fillStyle = repN > 0 ? ('rgba(255,150,40,' + (0.16+0.12*repPulse).toFixed(2) + ')') : 'rgba(140,220,255,0.08)';
+  ctx.fillRect(18, bannerY, w-36, bannerH);
+  ctx.strokeStyle = repN > 0 ? ('rgba(255,180,70,' + (0.5+0.3*repPulse).toFixed(2) + ')') : 'rgba(140,220,255,0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(18, bannerY, w-36, bannerH);
+  ctx.fillStyle = repN > 0 ? '#ffd479' : '#bfe6ff';
+  ctx.font = 'bold 17px monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(repText, w/2, bannerY + bannerH/2 + 1);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
   /* three separate pie charts — one per agent status, nothing else on the panel */
   var activeN = liveCounts.active;
   var errorN  = liveCounts.error;
@@ -407,7 +424,7 @@ function drawDashboard(ctx, w, h, t){
     { label:'DORMINDO', n:sleepN,  color:'#8f9dff' }
   ];
 
-  var areaTop=90, areaBottom=h-16, areaH=areaBottom-areaTop;
+  var areaTop=bannerY+bannerH+12, areaBottom=h-16, areaH=areaBottom-areaTop;
   var pieR = Math.min(areaH*0.4, 66);
   var colW = (w-52)/3;
 
@@ -1375,6 +1392,9 @@ var positions = [ [-3.3,-2.0], [3.3,-2.0], [-3.3,1.9], [3.3,1.9]];
      5. colunaStatus   → coluna com o status  (Table Editor)
      6. link           → URL do app/dashboard daquele robô — clicar no
                           robô na cena 3D abre esse link em nova aba.
+     7. colunaLinhas   → (opcional, só o Radar Colegiados usa) coluna
+                          com o array JSON de representações do dia —
+                          a contagem aparece no painel central.
 
    Deixe em branco ("") o que ainda não tiver — o código já sabe pular
    um robô incompleto sem quebrar os outros.
@@ -1391,6 +1411,7 @@ var ROBOS = [
     tabela:       "pendencias_envio",
     colunaData:   "data",
     colunaStatus: "status",
+    colunaLinhas: "linhas",   /* coluna com o array JSON de representações encontradas no dia — usada no painel central */
     nome:         "Radar Colegiados",
     link:         "https://radarcolegiados.vercel.app/",
   },
@@ -1457,6 +1478,7 @@ var ROBOT_MODES = [robo1, robo2, robo3, robo4];
 var robots = [];
 var desks = [];
 var robotClickTargets = []; /* invisible hitboxes, one per robot, used to open its dashboard link on click */
+var representacoesHojeCount = 0; /* quantas representações o Radar Colegiados (robo1) achou hoje — mostrado no painel central */
 var SMOKE_COUNT = 10; /* puff sprites per robot's error-mode monitor smoke plume */
 var SMOKE_LIFE = 2.4;  /* seconds for one puff to rise, grow and fade out */
 
@@ -1602,9 +1624,33 @@ async function buscarStatus(cfg){
   } catch(e){ console.error("Erro ao buscar status:", e); return null; }
 }
 
+/* busca a coluna "linhas" do dia (array JSON de representações encontradas) e conta quantas tem.
+   Vai mudando dia a dia — pode vir com 0, 1, 2... representações, ou sem linha nenhuma pra hoje. */
+async function buscarLinhas(cfg){
+  if (!cfg || !cfg.url || !cfg.anonKey || !cfg.colunaLinhas) return null; // ligação incompleta ou robô sem essa coluna: pula sem dar erro
+  try {
+    var client = window.supabase.createClient(cfg.url, cfg.anonKey);
+    var resp = await client
+      .from(cfg.tabela)
+      .select(cfg.colunaLinhas)
+      .eq(cfg.colunaData, hojeISO())
+      .maybeSingle();
+    if (resp.error){ console.error("Erro Supabase (linhas):", resp.error); return null; }
+    return resp.data ? resp.data[cfg.colunaLinhas] : null;
+  } catch(e){ console.error("Erro ao buscar linhas:", e); return null; }
+}
+
+function contarRepresentacoes(linhas){
+  var arr = linhas;
+  if (typeof arr === 'string'){
+    try { arr = JSON.parse(arr); } catch(e){ return 0; } // coluna veio como texto em vez de json/jsonb
+  }
+  return Array.isArray(arr) ? arr.length : 0;
+}
+
 async function atualizarModosDosRobos(){
   var agora = new Date();
-  
+
   for (var i = 0; i < robots.length; i++){
 
     // VIGENCIA SEMPRE TRABALHANDO - nao tem banco
@@ -1612,11 +1658,14 @@ async function atualizarModosDosRobos(){
       robots[i].mode = "workingmode";
       continue;
     }
-    
+
     var status = await buscarStatus(ROBOS[i]);
     robots[i].mode = statusParaModo(status, agora);
     robots[i].statusRaw = status; // guarda exatamente o que veio de colunaStatus
   }
+
+  var linhasHoje = await buscarLinhas(ROBOS[0]); // só o Radar Colegiados tem essa coluna
+  representacoesHojeCount = contarRepresentacoes(linhasHoje);
 }
 
 atualizarModosDosRobos();
