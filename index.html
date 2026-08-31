@@ -115,6 +115,19 @@
     color:#eaf6ff; font:11px monospace; letter-spacing:0.5px; padding:4px 8px; color-scheme:dark; text-transform:uppercase;
   }
   #dayBar .dbSep { width:1px; height:14px; background:rgba(140,220,255,0.18); }
+
+  /* easter egg: "modo aniversário" banner — 2x bebedouro + 1x impressora */
+  #birthdayBanner {
+    position:absolute; top:70px; left:50%; transform:translateX(-50%) scale(0.85);
+    z-index:8; pointer-events:none; opacity:0; transition:opacity .3s ease, transform .3s ease;
+    font-size:22px; font-weight:900; letter-spacing:2px; white-space:nowrap;
+    background:linear-gradient(90deg,#ff5c8a,#ffd23f,#5cf28c,#5cc8ff,#c05cff,#ff5c8a);
+    background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:bdayShift 1.2s linear infinite;
+    text-shadow:0 0 18px rgba(255,255,255,0.25);
+  }
+  #birthdayBanner.show { opacity:1; transform:translateX(-50%) scale(1); }
+  @keyframes bdayShift { to { background-position:300% 0; } }
 </style>
 </head>
 <body>
@@ -129,6 +142,7 @@
     <span class="dbSep"></span>
     <input type="date" id="dbDayInput">
   </div>
+  <div id="birthdayBanner">🎉 FELIZ ANIVERSÁRIO!!! 🎉</div>
   <div id="holoTooltip">
     <div class="hpConnDot"></div>
     <div class="hpConnector"></div>
@@ -180,6 +194,8 @@ renderer.outputEncoding = THREE.sRGBEncoding;
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05070a);
 scene.fog = new THREE.Fog(0x05070a, 14, 34);
+
+var easterEggClickTargets = []; /* invisible hitboxes on the water station + printer — clique 2x bebedouro + 1x impressora liga o modo aniversário */
 
 var camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 100);
 var CAM_BASE_POS = [0, 3.15, 7.9];
@@ -544,8 +560,8 @@ function drawDashboard(ctx, w, h, t){
   var pushN = pushDiretoraCount;
   var pushColor = pushN > 0 ? '#ff8a3d' : '#28f0c0';
   var stats = [
-    { label:'push representações encontrou:', value:repN,  color:repColor },
-    { label:'push diretora encontrou:',       value:pushN, color:pushColor }
+    { label:'Push Representações encontrou:', value:repN,  color:repColor },
+    { label:'Push Deorg encontrou:',       value:pushN, color:pushColor }
   ];
 
   var rowH = 64, rowGap = 14, rowY = divY + 22;
@@ -1062,8 +1078,17 @@ function buildWaterStation(x,z){
   stationLight.target.position.set(x,1,z);
   g.rotation.y = -Math.PI / 3;
   room.add(stationLight); room.add(stationLight.target);
+
+  /* invisible click hitbox covering the whole station — easter egg trigger (see "modo aniversário") */
+  var hitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,1.7,10), new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false }));
+  hitbox.position.y = 0.85;
+  hitbox.userData.easterEgg = 'bebedouro';
+  g.add(hitbox);
+  easterEggClickTargets.push(hitbox);
+
+  return g;
 }
-buildWaterStation(6.8, -0.9);
+var waterStation = buildWaterStation(6.8, -0.9);
 
 
 /* ---------- sofa, next to the water station ---------- */
@@ -1270,6 +1295,13 @@ function buildPrinterStation(x, z, rotY){
   g.position.set(x, 0, z);
   if (rotY) g.rotation.y = rotY;
   room.add(g);
+
+  /* invisible click hitbox covering cabinet + printer — easter egg trigger (see "modo aniversário") */
+  var hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.3,0.7), new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false }));
+  hitbox.position.set(0, 0.65, 0);
+  hitbox.userData.easterEgg = 'impressora';
+  g.add(hitbox);
+  easterEggClickTargets.push(hitbox);
 
   return { sheet:sheet, sheetSlotY:slotY+0.001, sheetTrayY:trayY+0.012, led:ledMat };
 }
@@ -1521,7 +1553,7 @@ var ROBOS = [
     colunaData:   "data",   // <-- FALTA PREENCHER
     colunaStatus: "sucesso_diario",   // <-- FALTA PREENCHER
     colunaPushCount: "push_count",   /* coluna numérica do dia — usada no painel central */
-    nome:         "Push Diretora",
+    nome:         "Push DEORG",
     link:         "https://pushdeorg.vercel.app/",
   },
 
@@ -1609,7 +1641,7 @@ positions.forEach(function(p, i){
   robotObj.link = ROBOS[i].link || '';
   var clickHitbox = new THREE.Mesh(
     new THREE.BoxGeometry(0.6, 1.6, 0.6),
-    new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
+    new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false })
   );
   clickHitbox.position.y = 0.8;
   clickHitbox.userData.robotIndex = i;
@@ -1856,6 +1888,62 @@ buildTrashBin(6.55, -4.15);
 // PILAR REDONDO NO MEIO
 /* rotating holographic pillar, centerpiece between the two robot rows */
 /* rotating holographic pillar, centerpiece between the two robot rows */
+/* giant birthday cake, built once and kept hidden — swapped in for the hologram ball during
+   "modo aniversário" (see the easter egg below) by toggling .visible, never rebuilt, so it
+   costs nothing while off. Candles flicker only while the cake itself is visible. */
+function buildBirthdayCake(){
+  var cg = new THREE.Group();
+  cg.visible = false;
+
+  var tiersDef = [
+    { r:0.95, h:0.5,  color:0xffb3c6 },
+    { r:0.68, h:0.42, color:0xfff0c9 },
+    { r:0.42, h:0.36, color:0xffffff }
+  ];
+  var y = 0.05, topY = y;
+  tiersDef.forEach(function(td){
+    var tier = new THREE.Mesh(
+      new THREE.CylinderGeometry(td.r, td.r*1.05, td.h, 22),
+      new THREE.MeshStandardMaterial({ color:td.color, roughness:0.55, metalness:0.05 })
+    );
+    tier.position.y = y + td.h/2;
+    tier.castShadow = true;
+    cg.add(tier);
+    var lip = new THREE.Mesh(
+      new THREE.TorusGeometry(td.r, 0.035, 8, 20),
+      new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.4 })
+    );
+    lip.rotation.x = Math.PI/2;
+    lip.position.y = y + td.h;
+    cg.add(lip);
+    y += td.h;
+    topY = y;
+  });
+
+  var candleColors = [0xff5c8a,0x5cc8ff,0xffd23f,0x5cf28c,0xc05cff];
+  var candles = [];
+  var candleCount = 7;
+  for (var i=0; i<candleCount; i++){
+    var ang = (i/candleCount)*Math.PI*2;
+    var cx = Math.cos(ang)*0.22, cz = Math.sin(ang)*0.22;
+    var candle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02,0.02,0.22,8),
+      new THREE.MeshStandardMaterial({ color:candleColors[i%candleColors.length], roughness:0.4 })
+    );
+    candle.position.set(cx, topY+0.11, cz);
+    cg.add(candle);
+    var flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.025,0.06,8),
+      new THREE.MeshStandardMaterial({ color:0xffcf5c, emissive:0xff9a2e, emissiveIntensity:1.6 })
+    );
+    flame.position.set(cx, topY+0.25, cz);
+    cg.add(flame);
+    candles.push({ mesh:flame, seed:i*1.9 });
+  }
+
+  return { group:cg, candles:candles };
+}
+
 function buildHoloPillar(x,z){
   var g = new THREE.Group();
   var base = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.12,20), matJoint);
@@ -1872,12 +1960,16 @@ function buildHoloPillar(x,z){
   holoLight.position.y = 1.25;
   g.add(holoLight);
   /* bigger invisible sphere so the hover hitbox isn't limited to the thin wireframe facets */
-  var hoverTarget = new THREE.Mesh(new THREE.SphereGeometry(0.42,12,10), new THREE.MeshBasicMaterial({ transparent:true, opacity:0 }));
+  var hoverTarget = new THREE.Mesh(new THREE.SphereGeometry(0.42,12,10), new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false }));
   hoverTarget.position.y = 1.25;
   g.add(hoverTarget);
+
+  var cake = buildBirthdayCake();
+  g.add(cake.group);
+
   g.position.set(x,0,z);
   room.add(g);
-  return { holo:holo, hoverTarget:hoverTarget };
+  return { holo:holo, holoLight:holoLight, hoverTarget:hoverTarget, cake:cake };
 }
 var holoPillar = buildHoloPillar(0, -0.45);
 
@@ -1954,11 +2046,93 @@ canvas.addEventListener('click', function(e){
     -((e.clientY-rect.top)/rect.height)*2 + 1
   );
   holoRaycaster.setFromCamera(ndc, camera);
+
   var hit = holoRaycaster.intersectObjects(robotClickTargets, false);
-  if (hit.length === 0) return;
-  var robot = robots[hit[0].object.userData.robotIndex];
-  if (robot && robot.link) window.open(robot.link, '_blank', 'noopener');
+  if (hit.length > 0){
+    var robot = robots[hit[0].object.userData.robotIndex];
+    if (robot && robot.link) window.open(robot.link, '_blank', 'noopener');
+    return;
+  }
+
+  var eggHit = holoRaycaster.intersectObjects(easterEggClickTargets, false);
+  if (eggHit.length > 0) registrarCliqueEasterEgg(eggHit[0].object.userData.easterEgg);
 });
+
+/* ---------- easter egg: 2 cliques no bebedouro + 1 na impressora, nessa ordem, liga o
+   "modo aniversário" — luzes coloridas piscando por 10 segundos. Um intervalo grande
+   demais entre cliques (2.5s) reseta a combinação. ---------- */
+var easterEggSequence = [];
+var easterEggLastClickT = -999;
+var EASTER_EGG_COMBO = ['bebedouro','bebedouro','impressora'];
+
+function registrarCliqueEasterEgg(tag){
+  var t = clock.getElapsedTime();
+  if (t - easterEggLastClickT > 2.5) easterEggSequence = []; /* combo esfriou, começa de novo */
+  easterEggLastClickT = t;
+
+  easterEggSequence.push(tag);
+  if (easterEggSequence.length > EASTER_EGG_COMBO.length) easterEggSequence.shift();
+
+  var bateu = easterEggSequence.length === EASTER_EGG_COMBO.length &&
+    easterEggSequence.every(function(v, i){ return v === EASTER_EGG_COMBO[i]; });
+  if (bateu){
+    ativarModoAniversario();
+    easterEggSequence = [];
+  }
+}
+
+/* luzes de festa: desligadas (visible=false, não só intensity=0 — uma PointLight visível é
+   processada no shader de TODO objeto iluminado da cena a cada frame, mesmo com intensidade
+   zero, então deixá-las "ligadas porém apagadas" pesava a cena inteira o tempo todo).
+   Só ficam visible=true durante os 10s do modo aniversário. */
+var partyLights = (function(){
+  var posicoes = [[-5,3.1,-3],[5,3.1,-3],[-5,3.1,2],[5,3.1,2],[0,3.3,-4],[0,3.3,3]];
+  return posicoes.map(function(p, i){
+    var l = new THREE.PointLight(0xffffff, 0, 7, 2);
+    l.position.set(p[0], p[1], p[2]);
+    l.visible = false;
+    room.add(l);
+    return { light:l, phase:i*1.7 };
+  });
+})();
+var birthdayBannerEl = document.getElementById('birthdayBanner');
+var aniversarioAteT = -1; /* clock time até quando o modo aniversário fica ligado */
+
+function ativarModoAniversario(){
+  aniversarioAteT = clock.getElapsedTime() + 10;
+  birthdayBannerEl.classList.add('show');
+  partyLights.forEach(function(pl){ pl.light.visible = true; });
+  /* a bolinha holográfica vira um bolo gigante — troca só visibilidade, nada é recriado */
+  holoPillar.holo.visible = false;
+  holoPillar.holoLight.visible = false;
+  holoPillar.cake.group.visible = true;
+}
+
+function updateModoAniversario(t){
+  var ativo = t < aniversarioAteT;
+  if (!ativo){
+    if (aniversarioAteT >= 0){ /* acabou de desligar: apaga tudo uma vez só */
+      partyLights.forEach(function(pl){ pl.light.intensity = 0; pl.light.visible = false; });
+      birthdayBannerEl.classList.remove('show');
+      holoPillar.holo.visible = true;
+      holoPillar.holoLight.visible = true;
+      holoPillar.cake.group.visible = false;
+      robots.forEach(function(r){ r.hips.rotation.z = 0; }); /* só a dança mexe nesse eixo — zera pra não ficar torto */
+      aniversarioAteT = -1;
+    }
+    return;
+  }
+  holoPillar.cake.candles.forEach(function(c){
+    c.mesh.material.emissiveIntensity = 1.2 + Math.sin(t*20 + c.seed*5)*0.7; /* velas tremeluzindo */
+    var s = 0.85 + Math.sin(t*15 + c.seed*3)*0.15;
+    c.mesh.scale.set(s, 1, s);
+  });
+  partyLights.forEach(function(pl){
+    var hue = (t*0.8 + pl.phase*0.16) % 1;
+    pl.light.color.setHSL(hue, 1, 0.55);
+    pl.light.intensity = Math.max(0, 4.5 + Math.sin(t*16 + pl.phase*4)*4); /* piscando rápido */
+  });
+}
 
 /* ---------- fixed supervisor overview camera ---------- */
 /* Keeps all 4 desks in frame at once, like a manager watching the room.
@@ -2320,6 +2494,40 @@ function updateSmoke(r, t){
   }
 }
 
+/* dança do "modo aniversário": só toma conta da POSE por cima do que já existe, sem tocar em
+   r.mode — o status real (working/idle/sleeping/error) continua intacto por baixo e volta a
+   valer sozinho assim que os 10s acabam (é o `animate()` que decide, frame a frame, se chama
+   isso ou o handler normal do modo). O único eixo que nenhum modo normal zera sozinho depois
+   (hips.rotation.z) é resetado explicitamente em updateModoAniversario ao desligar. */
+function updateDanca(r, t){
+  var ph = r.phase;
+  r.zzz.visible = false;
+  r.lamp.visible = true;
+  r.lamp.color.setHex(LAMP_COLOR_NORMAL);
+  r.ledMat.color.setHex(LED_COLOR_NORMAL);
+  r.ledMat.emissive.setHex(LED_COLOR_NORMAL);
+  r.deskStain.visible = false;
+  r.deskDrip.visible = false;
+  r.floorPuddle.visible = false;
+  r.cup.position.copy(r.cupBasePos);
+  r.cup.rotation.copy(r.cupBaseRot);
+
+  var bounce = Math.abs(Math.sin(t*6 + ph*2)) * 0.1;
+  var sway   = Math.sin(t*3 + ph*1.7) * 0.08;
+  r.hips.position.set(sway, 0.85 + bounce, 0);
+  r.hips.rotation.x = 0;
+  r.hips.rotation.z = Math.sin(t*3 + ph*1.7) * 0.14;
+
+  var wave = Math.sin(t*5 + ph);
+  r.armL.rotation.set(-2.1 + wave*0.3, 0,  0.6 + Math.sin(t*4+ph)*0.35);
+  r.armR.rotation.set(-2.1 - wave*0.3, 0, -0.6 - Math.sin(t*4+ph+Math.PI)*0.35);
+  r.armL.elbowGroup.rotation.x = -0.3;
+  r.armR.elbowGroup.rotation.x = -0.3;
+
+  r.headPivot.rotation.set(-0.05 + Math.sin(t*6+ph)*0.12, Math.sin(t*4+ph)*0.35, 0);
+  r.chestLight.material.emissiveIntensity = 1.1 + Math.sin(t*8+ph)*0.5;
+}
+
 var ROBOT_MODE_HANDLERS = {
   workingmode: modeWorking,
   idlemode: modeIdle,
@@ -2332,23 +2540,30 @@ function animate(){
   var t = clock.getElapsedTime();
   frame++;
 
+  var aniversarioAtivo = t < aniversarioAteT;
+
   robots.forEach(function(r){
-    var handler = ROBOT_MODE_HANDLERS[r.mode] || modeWorking;
-    handler(r, t);
+    if (aniversarioAtivo){
+      updateDanca(r, t);
+    } else {
+      var handler = ROBOT_MODE_HANDLERS[r.mode] || modeWorking;
+      handler(r, t);
+    }
     updateSmoke(r, t);
 
     /* keep the little name tag on the opposite side of the desk */
     r.headPivot.getWorldPosition(__nameTagHeadWorld);
 
+    var isSleepingPose = r.mode === 'sleepingmode' && !aniversarioAtivo; /* dançando, ninguém tá com a cabeça na mesa */
     var sideOffset;
 
-    if (r.mode === 'sleepingmode') {
+    if (isSleepingPose) {
       sideOffset = r.group.position.x < 0 ? 1 : -1;
     } else {
       sideOffset = r.group.position.x < 0 ? 0.9 : -0.9;
     }
 
-    var heightOffset = r.mode === 'sleepingmode' ? 0.2 : -0.4;
+    var heightOffset = isSleepingPose ? 0.2 : -0.4;
 
     r.nameTag.position.set(
       __nameTagHeadWorld.x - r.group.position.x + sideOffset,
@@ -2375,6 +2590,7 @@ function animate(){
   updateCamera(t);
   updateHoloHover();
   updateRobotHoverCursor();
+  updateModoAniversario(t);
   renderer.render(scene, camera);
 }
 
