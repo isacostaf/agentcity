@@ -1894,6 +1894,16 @@ function hojeISO(){
   return new Date(d - tz).toISOString().slice(0, 10); // YYYY-MM-DD local
 }
 
+/* último dia que pode aparecer no calendário — hoje não é selecionável de propósito
+   (ver dbDayInput.max mais abaixo): ou é AO VIVO, ou é um dia já fechado/passado. */
+function ontemISO(){
+  var d = new Date();
+  var tz = d.getTimezoneOffset() * 60000;
+  var local = new Date(d - tz);
+  local.setDate(local.getDate() - 1);
+  return local.toISOString().slice(0, 10);
+}
+
 function statusParaModo(status, agora){
   var s = (status || "").toLowerCase().trim();
   if (s === "enviado") return "workingmode";
@@ -2010,7 +2020,7 @@ var dbDot = document.getElementById('dbDot');
 var dbBar = document.getElementById('dayBar');
 var dbBtnAoVivo = document.getElementById('dbBtnAoVivo');
 var dbDayInput = document.getElementById('dbDayInput');
-dbDayInput.max = hojeISO(); /* não faz sentido escolher um dia no futuro */
+dbDayInput.max = ontemISO(); /* hoje não é selecionável: ou é AO VIVO, ou é um dia passado */
 
 function pararAtualizacaoAoVivo(){
   if (liveIntervalId){ clearInterval(liveIntervalId); liveIntervalId = null; }
@@ -2042,7 +2052,13 @@ function irParaDia(dataISO){
 
 dbBtnAoVivo.addEventListener('click', irParaAoVivo);
 dbDayInput.addEventListener('change', function(){
-  if (dbDayInput.value) irParaDia(dbDayInput.value);
+  if (!dbDayInput.value) return;
+  if (dbDayInput.value >= hojeISO()){ /* rede de segurança: alguns navegadores deixam digitar/colar passando do `max` */
+    dbDayInput.value = '';
+    irParaAoVivo();
+    return;
+  }
+  irParaDia(dbDayInput.value);
 });
 
 irParaAoVivo(); /* estado inicial: tempo real */
