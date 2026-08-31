@@ -95,6 +95,26 @@
   #holoTooltip .hpRawRow .hrVal { font-weight:bold; color:#eaf6ff; max-width:150px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   @keyframes htBlink { 0%,100%{opacity:1;} 50%{opacity:.25;} }
+
+  /* minimal top bar: switch between AO VIVO and a chosen day (always read at 12:00 of that day) */
+  #dayBar {
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    z-index:6; display:flex; align-items:center; gap:10px;
+    background:rgba(8,12,20,0.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    border:1px solid rgba(140,220,255,0.18); border-radius:20px;
+    padding:6px 10px 6px 14px; font-family:monospace; font-size:11px; letter-spacing:1px;
+    color:rgba(200,230,255,0.85); text-transform:uppercase;
+    box-shadow:0 4px 18px rgba(0,0,0,0.35);
+  }
+  #dayBar .dbDot { width:6px; height:6px; border-radius:50%; background:#7ee081; box-shadow:0 0 6px #7ee081; transition:background .3s,box-shadow .3s; }
+  #dayBar.hist .dbDot { background:#ff8a3d; box-shadow:0 0 6px #ff8a3d; }
+  #dayBar button { all:unset; cursor:pointer; padding:4px 10px; border-radius:12px; font:inherit; letter-spacing:1px; color:rgba(200,230,255,0.6); transition:background .2s,color .2s; }
+  #dayBar button.active { background:rgba(140,220,255,0.14); color:#eaf6ff; }
+  #dayBar input[type=date] {
+    background:rgba(255,255,255,0.05); border:1px solid rgba(140,220,255,0.22); border-radius:10px;
+    color:#eaf6ff; font:11px monospace; letter-spacing:0.5px; padding:4px 8px; color-scheme:dark; text-transform:uppercase;
+  }
+  #dayBar .dbSep { width:1px; height:14px; background:rgba(140,220,255,0.18); }
 </style>
 </head>
 <body>
@@ -103,6 +123,12 @@
   <div id="vignette"></div>
   <div id="caption">Escritório <b>DEORG SEORI SG</b> — visão do gestor</div>
   <div id="loading"><div class="spin"></div><div>carregando a sala</div></div>
+  <div id="dayBar">
+    <span class="dbDot" id="dbDot"></span>
+    <button id="dbBtnAoVivo" class="active">AO VIVO</button>
+    <span class="dbSep"></span>
+    <input type="date" id="dbDayInput">
+  </div>
   <div id="holoTooltip">
     <div class="hpConnDot"></div>
     <div class="hpConnector"></div>
@@ -1681,30 +1707,30 @@ function statusParaModo(status, agora){
   return agora.getHours() >= 11 ? "errormode" : "idlemode";
 }
 
-async function buscarStatus(cfg){
+async function buscarStatus(cfg, dataISO){
   if (!cfg || !cfg.url || !cfg.anonKey) return null; // ligação ainda incompleta: pula sem dar erro
   try {
     var client = window.supabase.createClient(cfg.url, cfg.anonKey);
     var resp = await client
       .from(cfg.tabela)
       .select(cfg.colunaStatus)
-      .eq(cfg.colunaData, hojeISO())
+      .eq(cfg.colunaData, dataISO)
       .maybeSingle();
     if (resp.error){ console.error("Erro Supabase:", resp.error); return null; }
     return resp.data ? resp.data[cfg.colunaStatus] : null;
   } catch(e){ console.error("Erro ao buscar status:", e); return null; }
 }
 
-/* busca uma coluna qualquer do dia (linha de hoje, filtrando por colunaData) — genérica,
+/* busca uma coluna qualquer do dia escolhido (filtrando por colunaData) — genérica,
    usada tanto pra "linhas" (array JSON) quanto pra "push_count" (número) e outras que vierem depois. */
-async function buscarColunaHoje(cfg, coluna){
+async function buscarColunaDoDia(cfg, coluna, dataISO){
   if (!cfg || !cfg.url || !cfg.anonKey || !coluna) return null; // ligação incompleta ou robô sem essa coluna: pula sem dar erro
   try {
     var client = window.supabase.createClient(cfg.url, cfg.anonKey);
     var resp = await client
       .from(cfg.tabela)
       .select(coluna)
-      .eq(cfg.colunaData, hojeISO())
+      .eq(cfg.colunaData, dataISO)
       .maybeSingle();
     if (resp.error){ console.error("Erro Supabase (" + coluna + "):", resp.error); return null; }
     return resp.data ? resp.data[coluna] : null;
@@ -1721,9 +1747,10 @@ function contarRepresentacoes(linhas){
   return Array.isArray(arr) ? arr.length : 0;
 }
 
-async function atualizarModosDosRobos(){
-  var agora = new Date();
-
+/* busca e aplica o estado de todos os robôs (+ os números do painel) pro dia `dataISO`.
+   `agoraParaModos` é o horário usado só pra decidir errormode/idlemode quando não tem
+   dado nenhum naquele dia — ao vivo é o horário real, num dia escolhido é sempre 12:00. */
+async function atualizarEstadoDoPainel(dataISO, agoraParaModos){
   for (var i = 0; i < robots.length; i++){
 
     // VIGENCIA SEMPRE TRABALHANDO - nao tem banco
@@ -1732,20 +1759,62 @@ async function atualizarModosDosRobos(){
       continue;
     }
 
-    var status = await buscarStatus(ROBOS[i]);
-    robots[i].mode = statusParaModo(status, agora);
+    var status = await buscarStatus(ROBOS[i], dataISO);
+    robots[i].mode = statusParaModo(status, agoraParaModos);
     robots[i].statusRaw = status; // guarda exatamente o que veio de colunaStatus
   }
 
-  var linhasHoje = await buscarColunaHoje(ROBOS[0], ROBOS[0].colunaLinhas); // só o Radar Colegiados tem essa coluna
-  representacoesHojeCount = contarRepresentacoes(linhasHoje);
+  var linhasDoDia = await buscarColunaDoDia(ROBOS[0], ROBOS[0].colunaLinhas, dataISO); // só o Radar Colegiados tem essa coluna
+  representacoesHojeCount = contarRepresentacoes(linhasDoDia);
 
-  var pushCountHoje = await buscarColunaHoje(ROBOS[1], ROBOS[1].colunaPushCount); // só o Push Diretora tem essa coluna
-  pushDiretoraCount = Number(pushCountHoje) || 0;
+  var pushCountDoDia = await buscarColunaDoDia(ROBOS[1], ROBOS[1].colunaPushCount, dataISO); // só o Push Diretora tem essa coluna
+  pushDiretoraCount = Number(pushCountDoDia) || 0;
 }
 
-atualizarModosDosRobos();
-setInterval(atualizarModosDosRobos, 60 * 1000); /* reconsulta a cada 1 min */
+/* ---------- barra de dia: AO VIVO (tempo real, atualiza a cada 1 min) x um dia escolhido
+   (sempre lido como se fossem 12:00 daquele dia, fixo, sem atualizar sozinho) ---------- */
+var modoAoVivo = true;
+var liveIntervalId = null;
+var dbDot = document.getElementById('dbDot');
+var dbBar = document.getElementById('dayBar');
+var dbBtnAoVivo = document.getElementById('dbBtnAoVivo');
+var dbDayInput = document.getElementById('dbDayInput');
+dbDayInput.max = hojeISO(); /* não faz sentido escolher um dia no futuro */
+
+function pararAtualizacaoAoVivo(){
+  if (liveIntervalId){ clearInterval(liveIntervalId); liveIntervalId = null; }
+}
+
+function atualizarUIBarraDeDia(){
+  dbBar.classList.toggle('hist', !modoAoVivo);
+  dbBtnAoVivo.classList.toggle('active', modoAoVivo);
+}
+
+function irParaAoVivo(){
+  modoAoVivo = true;
+  dbDayInput.value = '';
+  atualizarUIBarraDeDia();
+  pararAtualizacaoAoVivo();
+  atualizarEstadoDoPainel(hojeISO(), new Date());
+  liveIntervalId = setInterval(function(){
+    atualizarEstadoDoPainel(hojeISO(), new Date());
+  }, 60 * 1000);
+}
+
+function irParaDia(dataISO){
+  modoAoVivo = false;
+  atualizarUIBarraDeDia();
+  pararAtualizacaoAoVivo();
+  var agoraVirtual = new Date(dataISO + 'T12:00:00'); /* fixo: sempre como se fosse meio-dia daquele dia */
+  atualizarEstadoDoPainel(dataISO, agoraVirtual);
+}
+
+dbBtnAoVivo.addEventListener('click', irParaAoVivo);
+dbDayInput.addEventListener('change', function(){
+  if (dbDayInput.value) irParaDia(dbDayInput.value);
+});
+
+irParaAoVivo(); /* estado inicial: tempo real */
 
 /* small decor: a plant near back wall */
 function buildPlant(x,z){
