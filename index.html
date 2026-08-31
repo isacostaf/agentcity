@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 <style>
   html, body { margin:0; padding:0; width:100%; height:100%; background:#0a0c10; overflow:hidden; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; }
   #wrap { position:relative; width:100%; height:100vh; }
@@ -357,6 +360,39 @@ function computeAgentCounts(){
   return { active:active, error:error, sleep:sleep, total:robots.length };
 }
 
+/* one row of the dashboard: a label glued to the left, a glowing Orbitron number glued to the
+   right, inside a thin bordered card. Built as its own function so new stats later are just
+   another entry in the `stats` array below — not a redesign each time. */
+function drawStatRow(ctx, x, y, w, h, label, value, color, t){
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(140,220,255,0.18)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x+0.5, y+0.5, w-1, h-1);
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(140,220,255,0.8)';
+  ctx.font = '18px monospace';
+  var labelX = x+22;
+  ctx.fillText(label, labelX, y+h/2+1);
+  var labelW = ctx.measureText(label).width;
+
+  var numText = String(value);
+  ctx.font = '900 58px Orbitron, monospace';
+  var GAP_LABEL_NUM = 28; /* distância fixa entre o fim da frase e o número, não muda com o tamanho do texto */
+  var numX = labelX + labelW + GAP_LABEL_NUM;
+  var pulse = 0.5 + 0.5*Math.sin(t*2.4);
+
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 16 + pulse*10;
+  ctx.fillStyle = color;
+  ctx.fillText(numText, numX, y+h/2+2);
+  ctx.shadowBlur = 0;
+  ctx.fillText(numText, numX, y+h/2+2); /* second pass: crisp core under the glow */
+  ctx.restore();
+}
+
 function drawDashboard(ctx, w, h, t){
   ctx.fillStyle = '#050a12';
   ctx.fillRect(0,0,w,h);
@@ -371,92 +407,24 @@ function drawDashboard(ctx, w, h, t){
   ctx.fillStyle = 'rgba(140,220,255,0.05)';
   ctx.fillRect(0, scanY, w, 3);
 
-  /* title + live indicator */
-  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-  ctx.fillStyle = '#8fe3ff'; ctx.font = 'bold 34px monospace';
-  ctx.fillText('AGENTES', 26, 18);
-  ctx.fillStyle = 'rgba(140,220,255,0.65)'; ctx.font = '13px monospace';
-  ctx.fillText('MONITOR DE FORÇA DE TRABALHO AUTÔNOMA', 26, 58);
-  var liveBlink = 0.5 + 0.5*Math.sin(t*4);
-  ctx.fillStyle = 'rgba(120,255,160,' + (0.4+0.6*liveBlink).toFixed(2) + ')';
-  ctx.beginPath(); ctx.arc(320, 30, 6, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = 'rgba(140,255,180,0.85)'; ctx.font = '13px monospace';
-  ctx.fillText('AO VIVO', 334, 24);
-
-  /* uptime + active-agent count (top right) */
-  var secs = Math.floor(t);
-  var hh = String(Math.floor(secs/3600)).padStart(2,'0');
-  var mm = String(Math.floor((secs%3600)/60)).padStart(2,'0');
-  var ss = String(secs%60).padStart(2,'0');
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#cfeeff'; ctx.font = '15px monospace';
-  ctx.fillText('TEMPO ATIVO  ' + hh+':'+mm+':'+ss, w-26, 22);
-  var liveCounts = computeAgentCounts();
-  ctx.fillStyle = '#8fe3ff';
-  ctx.fillText('AGENTES ATIVOS  ' + liveCounts.active + '/' + robots.length, w-26, 46);
+  /* title, centered at the top */
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#8fe3ff'; ctx.font = 'bold 24px monospace';
+  ctx.fillText('Dashboard', w/2, 16);
   ctx.textAlign = 'left';
 
-  /* banner: quantas representações o Radar Colegiados achou hoje — chamativo, pisca levemente quando > 0 */
+  /* stat rows: one per line of data on the panel. Add more objects here later — each
+     becomes its own row automatically, stacked top to bottom. */
   var repN = representacoesHojeCount;
-  var repLabel = repN === 1 ? 'REPRESENTAÇÃO' : 'REPRESENTAÇÕES';
-  var repText = 'PUSH REPRESENTAÇÕES ENCONTROU HOJE: ' + repN + ' ' + repLabel;
-  var bannerY = 68, bannerH = 30;
-  var repPulse = 0.5 + 0.5*Math.sin(t*3);
-  ctx.fillStyle = repN > 0 ? ('rgba(255,150,40,' + (0.16+0.12*repPulse).toFixed(2) + ')') : 'rgba(140,220,255,0.08)';
-  ctx.fillRect(18, bannerY, w-36, bannerH);
-  ctx.strokeStyle = repN > 0 ? ('rgba(255,180,70,' + (0.5+0.3*repPulse).toFixed(2) + ')') : 'rgba(140,220,255,0.25)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(18, bannerY, w-36, bannerH);
-  ctx.fillStyle = repN > 0 ? '#ffd479' : '#bfe6ff';
-  ctx.font = 'bold 17px monospace';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(repText, w/2, bannerY + bannerH/2 + 1);
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-
-  /* three separate pie charts — one per agent status, nothing else on the panel */
-  var activeN = liveCounts.active;
-  var errorN  = liveCounts.error;
-  var sleepN  = liveCounts.sleep;
-  var total   = Math.max(1, robots.length);
-  var pieData = [
-    { label:'ATIVOS',   n:activeN, color:'#7ee081' },
-    { label:'ERRO',     n:errorN,  color:'#ff5c4d' },
-    { label:'DORMINDO', n:sleepN,  color:'#8f9dff' }
+  var repColor = repN > 0 ? '#ff8a3d' : '#28f0c0'; /* amber when there's something to look at, teal when zero */
+  var stats = [
+    { label:'push representações encontrou:', value:repN, color:repColor }
   ];
 
-  var areaTop=bannerY+bannerH+12, areaBottom=h-16, areaH=areaBottom-areaTop;
-  var pieR = Math.min(areaH*0.4, 66);
-  var colW = (w-52)/3;
-
-  pieData.forEach(function(d,i){
-    var cx = 26 + colW*i + colW/2;
-    var cy = areaTop + areaH/2;
-    var frac = d.n/total;
-
-    ctx.beginPath(); ctx.arc(cx,cy,pieR,0,Math.PI*2);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
-
-    if (d.n > 0){
-      ctx.beginPath();
-      ctx.moveTo(cx,cy);
-      ctx.arc(cx,cy,pieR,-Math.PI/2,-Math.PI/2 + frac*Math.PI*2);
-      ctx.closePath();
-      ctx.fillStyle = d.color;
-      ctx.fill();
-    }
-
-    ctx.beginPath(); ctx.arc(cx,cy,pieR*0.56,0,Math.PI*2);
-    ctx.fillStyle = '#050a12'; ctx.fill();
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#eaf6ff'; ctx.font = 'bold 28px monospace';
-    ctx.fillText(String(d.n), cx, cy-16);
-    ctx.font = '11px monospace'; ctx.fillStyle = 'rgba(200,230,255,0.6)';
-    ctx.fillText('/ ' + total, cx, cy+10);
-
-    ctx.fillStyle = d.color; ctx.font = 'bold 15px monospace';
-    ctx.fillText(d.label, cx, cy+pieR+18);
-    ctx.textAlign = 'left';
+  var padX = 24, rowH = 64, rowGap = 14, rowY = 60;
+  stats.forEach(function(s){
+    drawStatRow(ctx, padX, rowY, w-padX*2, rowH, s.label, s.value, s.color, t);
+    rowY += rowH + rowGap;
   });
 }
 
