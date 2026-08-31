@@ -7,6 +7,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 <style>
+  /* A sala 3D em si (o <canvas>) não usa nada daqui — é tudo desenhado com
+     THREE.js/WebGL, ver o <script> no fim do arquivo. Este CSS estiliza só
+     as camadas de HTML por CIMA do canvas: legenda, tela de carregamento,
+     a barra "AO VIVO"/escolher dia, o balão de aniversário, o tooltip do
+     holograma, e o botão+modal de "ler representações". Cada bloco abaixo
+     é #id de um desses elementos — procure o mesmo #id no <body>. */
   html, body { margin:0; padding:0; width:100%; height:100%; background:#0a0c10; overflow:hidden; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; }
   #wrap { position:relative; width:100%; height:100vh; }
   canvas { display:block; width:100%; height:100%; }
@@ -179,6 +185,11 @@
 </style>
 </head>
 <body>
+<!-- #c é o <canvas> onde o three.js desenha a sala 3D inteira (ver o
+     <script> no fim do arquivo). Todo o resto aqui é HTML sobreposto por
+     cima dele (overlays), estilizado no <style> acima e ligado a
+     funções/listeners no JS — cada #id abaixo tem seu bloco de CSS
+     correspondente lá em cima. -->
 <div id="wrap">
   <canvas id="c"></canvas>
   <div id="vignette"></div>
@@ -241,6 +252,44 @@
 (function(){
 "use strict";
 
+/* ════════════════════════════════════════════════════════════════════════
+   MAPA DESTE ARQUIVO — leia isto primeiro
+   ════════════════════════════════════════════════════════════════════════
+   Tudo (HTML, CSS e JS) fica num único index.html de propósito — é a forma
+   mais simples de publicar/hospedar isso sem build step. O <script> abaixo
+   está dividido nas seções abaixo, NA ORDEM em que aparecem no arquivo.
+   Cada uma começa com um banner igual a este (bem visível, fácil de achar
+   com Ctrl+F procurando por "SEÇÃO"), então dá pra pular direto pro que
+   importa sem ler o arquivo inteiro.
+
+     SEÇÃO 1  — Renderer, cena e câmera (setup básico do three.js)
+     SEÇÃO 2  — Texturas e materiais reaproveitados por várias peças
+     SEÇÃO 3  — Casco da sala (chão, teto, paredes) + tela do painel na parede
+     SEÇÃO 4  — Painel central 3D (o "Dashboard" desenhado na parede)
+     SEÇÃO 5  — Resto da sala: janelas, luzes de teto, luz ambiente, poeira
+     SEÇÃO 6  — Fábricas de geometria: xícara, mesa, cadeira, robô
+     SEÇÃO 7  — Móveis/decoração: canto do café, bebedouro, sofá, arquivo,
+                impressora, armário, triturador, plataforma de LED
+     SEÇÃO 8  — ROBOS[] (config de conexão com cada Supabase) + montagem
+                das 4 mesas (desk + cadeira + robô + hitboxes de clique)
+     SEÇÃO 9  — Busca no Supabase, decide o modo de cada robô, e a barra
+                "AO VIVO" / escolher um dia no topo da tela
+     SEÇÃO 10 — Decoração pequena: plantas, lixeiras
+     SEÇÃO 11 — Centro da sala: bolo de aniversário + pilar holográfico
+     SEÇÃO 12 — Interações de mouse: hover do holograma, botão/modal
+                "ler representações", clique nos robôs (abre o link),
+                easter egg do "modo aniversário"
+     SEÇÃO 13 — Câmera fixa (visão do "gestor")
+     SEÇÃO 14 — Animação dos robôs: IK dos braços, impressora/triturador,
+                os 4 modos de comportamento, fumaça de erro, dança
+     SEÇÃO 15 — Loop principal (animate()) — roda a cada frame
+     SEÇÃO 16 — Inicialização final (some com a tela de carregamento, resize)
+
+   Overview de mais alto nível (o que é cada robô, como plugar um Supabase
+   novo, como funcionam os "modos") está no README.md, na raiz do projeto.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── SEÇÃO 1 — Renderer, cena e câmera ─────────────────────────────────── */
 var canvas = document.getElementById('c');
 var renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -263,6 +312,7 @@ var CAM_BASE_LOOK = [0, 1.2, -0.5];
 camera.position.set(CAM_BASE_POS[0], CAM_BASE_POS[1], CAM_BASE_POS[2]);
 camera.lookAt(CAM_BASE_LOOK[0], CAM_BASE_LOOK[1], CAM_BASE_LOOK[2]);
 
+/* ── SEÇÃO 2 — Texturas e materiais reaproveitados por várias peças ────── */
 /* ---------- helpers ---------- */
 function makeCanvasTexture(draw, w, h){
   var cv = document.createElement('canvas'); cv.width = w||256; cv.height = h||256;
@@ -416,6 +466,7 @@ var matCoffee = new THREE.MeshStandardMaterial({ color:0x3b2417, roughness:0.4, 
 var matSpill = new THREE.MeshStandardMaterial({ color:0x2a1810, roughness:0.2, metalness:0.05, transparent:true, opacity:0.85 });
 var matPlatformRim = new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xffffff, emissiveIntensity:1.8, roughness:0.4 });
 
+/* ── SEÇÃO 3 — Casco da sala (chão, teto, paredes) + tela do painel ────── */
 /* ---------- room ---------- */
 var ROOM_W = 15, ROOM_D_BACK = 6.4, ROOM_H = 5.2;
 var room = new THREE.Group();
@@ -453,6 +504,13 @@ room.add(winFrame);
 var winGlow = new THREE.PointLight(0x59c8ff, 2.4, 9, 2);
 winGlow.position.set(0, 3, -ROOM_D_BACK + 1.6);
 room.add(winGlow);
+
+/* ── SEÇÃO 4 — Painel central 3D (o "Dashboard" desenhado na parede) ───
+   Não é HTML: é um <canvas> 2D redesenhado em JS (drawDashboard, chamada
+   por updateDashboard a cada poucos frames) e aplicado como textura numa
+   malha plana (windowMesh, criada na Seção 3). Pra adicionar uma métrica
+   nova no painel, procure o array `stats` dentro de drawDashboard — cada
+   entrada vira uma linha automaticamente (ver drawStatRow). ─────────── */
 
 /* single source of truth for agent status counts — used by the dashboard and the hologram hover tooltip */
 function computeAgentCounts(){
@@ -643,6 +701,7 @@ function updateDashboard(t){
   dashTex.texture.needsUpdate = true;
 }
 
+/* ── SEÇÃO 5 — Resto da sala: janelas, luzes de teto, luz ambiente, poeira ── */
 /* floor-to-ceiling windows on the side walls: same skyline texture but darker/tinted glass,
    with vertical mullions (esquadrias) dividing it into panes */
 var winFrameMat = new THREE.MeshStandardMaterial({ color:0x0c0e12, roughness:0.6 });
@@ -722,6 +781,10 @@ scene.add(sun);
   window.__dust = pts;
 })();
 
+/* ── SEÇÃO 6 — Fábricas de geometria: xícara, mesa, cadeira, robô ───────
+   Estas funções só CRIAM a geometria (uma vez, na montagem da sala — ver
+   Seção 8). A pose de cada robô quadro a quadro é decidida depois, na
+   Seção 14 (modeWorking/modeIdle/modeSleeping/modeError/updateDanca). ── */
 /* ---------- coffee cup (saucer + body + handle) ---------- */
 function buildCup(){
   var saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.1,0.014,20), matCup);
@@ -914,7 +977,13 @@ function buildRobot(accent, phase){
   return { group:g, torso:torso, headPivot:headPivot, armL:armL, armR:armR, chestLight:chestLight, phase:phase, hips:hips, zzz:zzz };
 }
 
-    /* BREAK CORNER COFFEE*/
+/* ── SEÇÃO 7 — Móveis/decoração ──────────────────────────────────────────
+   Cada peça é uma função build*(x, z, rotY) que monta a geometria e já
+   chama room.add(...) sozinha — não devolve nada pra usar depois (ao
+   contrário de buildDesk/buildRobot da Seção 6, que a Seção 8 precisa
+   guardar pra poder animar). São só cenário estático. ─────────────────── */
+
+    /* canto do café: armário + bancada + máquina de café + canecas penduradas */
   function buildBreakCorner(x,z,rotY){
   var g = new THREE.Group();
   var cab = new THREE.Mesh(
@@ -1553,6 +1622,16 @@ function buildPlatform(x, z){
   return { PH:0, material:rimMat };
 }
 
+/* ── SEÇÃO 8 — ROBOS[] (config do Supabase de cada robô) + montagem das
+   4 mesas ───────────────────────────────────────────────────────────────
+   Nesta ordem: (1) as posições/cores das 4 estações; (2) `ROBOS[]` — a
+   "ficha de identidade" de cada robô (qual Supabase, qual tabela, qual
+   coluna — é ali que se pluga um robô novo ou se conserta um já
+   existente, tem comentário detalhado passo a passo logo acima do
+   array); (3) o modo inicial de cada robô; (4) o `positions.forEach`
+   que de fato monta desk + cadeira + robô + hitboxes de clique pra cada
+   uma das 4 estações, usando as fábricas da Seção 6 e os dados de
+   `ROBOS[]`, guardando tudo em `robots[]`/`desks[]`. ─────────────────── */
 /* ---------- assemble desks ---------- */
 var accents = [0x59d6ff, 0xff6f91, 0xffcf5c, 0x7ee081];
 var positions = [ [-3.3,-2.0], [3.3,-2.0], [-3.3,1.9], [3.3,1.9]];
@@ -1792,6 +1871,17 @@ positions.forEach(function(p, i){
   robotObj.lamp = lamp;
 });
 
+/* ── SEÇÃO 9 — Busca no Supabase, decide o modo de cada robô, e a barra
+   "AO VIVO" / escolher um dia ────────────────────────────────────────────
+   `atualizarEstadoDoPainel(dataISO, agoraParaModos)` é a função central:
+   busca o status + os números do dia em cada Supabase de `ROBOS[]` e
+   aplica em `robots[].mode` e nas variáveis do painel (representacoes-
+   HojeCount etc.). Ela roda de dois jeitos, controlados pelas funções
+   `irParaAoVivo()`/`irParaDia()` mais abaixo:
+     • AO VIVO  → dataISO = hoje, hora real, refaz a busca a cada 1 min.
+     • Um dia escolhido na barra do topo → dataISO = aquele dia, e a hora
+       usada pra decidir "sem dado = erro ou ocioso" é sempre fixada em
+       12:00 daquele dia (não atualiza sozinho depois). ─────────────── */
 
 function hojeISO(){
   var d = new Date();
@@ -1918,6 +2008,7 @@ dbDayInput.addEventListener('change', function(){
 
 irParaAoVivo(); /* estado inicial: tempo real */
 
+/* ── SEÇÃO 10 — Decoração pequena: plantas, lixeiras ────────────────────── */
 /* small decor: a plant near back wall */
 function buildPlant(x,z){
   var g = new THREE.Group();
@@ -1955,8 +2046,14 @@ positions.forEach(function(p){
 
 buildTrashBin(6.55, -4.15);
 
+/* ── SEÇÃO 11 — Centro da sala: bolo de aniversário + pilar holográfico ──
+   O pilar (buildHoloPillar) é o centro de tudo: base + bolinha holográfica
+   que fica girando. O bolo (buildBirthdayCake) é montado UMA VEZ, junto
+   com o pilar, mas fica escondido (visible=false) até o easter egg do
+   "modo aniversário" (Seção 12) trocar a visibilidade — nunca é recriado,
+   então não custa nada enquanto está desligado. ─────────────────────── */
+
 // PILAR REDONDO NO MEIO
-/* rotating holographic pillar, centerpiece between the two robot rows */
 /* rotating holographic pillar, centerpiece between the two robot rows */
 /* giant birthday cake, built once and kept hidden — swapped in for the hologram ball during
    "modo aniversário" (see the easter egg below) by toggling .visible, never rebuilt, so it
@@ -2042,6 +2139,22 @@ function buildHoloPillar(x,z){
   return { holo:holo, holoLight:holoLight, hoverTarget:hoverTarget, cake:cake };
 }
 var holoPillar = buildHoloPillar(0, -0.45);
+
+/* ── SEÇÃO 12 — Interações de mouse ──────────────────────────────────────
+   Tudo aqui usa o MESMO truque: um THREE.Raycaster (`holoRaycaster`) pra
+   saber o que o mouse está tocando dentro da cena 3D, e — quando o alvo é
+   um elemento de HTML (o tooltip do holograma, o botão "ler representa-
+   ções") — a posição 3D de um objeto é projetada pra coordenada de tela
+   (`.project(camera)`) e usada como left/top do elemento, recalculado a
+   cada frame. Nesta seção:
+     • updateHoloHover()            → tooltip ao passar o mouse na bolinha
+     • updateLerRepresentacoesBtn() → posiciona o botão sobre o painel 3D
+     • abrirModalRepresentacoes()   → abre a lista de documentos do dia
+     • updateRobotHoverCursor() + o listener de click no <canvas>
+       → cursor de "pode clicar" e abre o link de cada robô
+     • registrarCliqueEasterEgg() + ativarModoAniversario() +
+       updateModoAniversario()     → o easter egg (2x bebedouro + 1x
+       impressora liga o "modo aniversário" por 10s) ─────────────────── */
 
 /* hover the hologram ball -> open a holographic readout panel below it, tech/HUD styled.
    The panel is anchored to the ball's own on-screen position (re-projected every frame,
@@ -2260,6 +2373,7 @@ function updateModoAniversario(t){
   });
 }
 
+/* ── SEÇÃO 13 — Câmera fixa (visão do "gestor") ─────────────────────────── */
 /* ---------- fixed supervisor overview camera ---------- */
 /* Keeps all 4 desks in frame at once, like a manager watching the room.
    Adaptive FOV recalculates on resize so the row of robots always fits,
@@ -2291,6 +2405,14 @@ function updateCamera(t){
   camera.lookAt(look[0],look[1],look[2]);
 }
 
+/* ── SEÇÃO 14 — Animação dos robôs ───────────────────────────────────────
+   Nesta ordem: vetores/quaternions reaproveitados a cada frame (pra não
+   alocar objeto novo 60x/s), a IK de 2 ossos do braço (ikAimArmAt — usada
+   tanto pra pegar o café quanto pro "mãos na cabeça" do errormode),
+   impressora/triturador, e por fim os 4 modos de comportamento de cada
+   robô (modeWorking/modeIdle/modeSleeping/modeError — troque `r.mode`
+   pra mudar o que um robô está fazendo, ver Seção 8/9), a fumaça de
+   erro (updateSmoke) e a dança do easter egg (updateDanca). ──────────── */
 /* ---------- animation loop ---------- */
 var clock = new THREE.Clock();
 var frame = 0;
@@ -2654,6 +2776,12 @@ function updateDanca(r, t){
   r.chestLight.material.emissiveIntensity = 1.1 + Math.sin(t*8+ph)*0.5;
 }
 
+/* ── SEÇÃO 15 — Loop principal ────────────────────────────────────────────
+   `animate()` roda a cada frame (requestAnimationFrame) e é basicamente
+   uma lista de "atualiza isso, atualiza aquilo" chamando as funções de
+   update de cada sistema descrito nas seções anteriores. Se algo devia
+   se mexer/atualizar e não está, o primeiro lugar pra olhar é aqui —
+   confira se a função de update dele está sendo chamada. ────────────── */
 var ROBOT_MODE_HANDLERS = {
   workingmode: modeWorking,
   idlemode: modeIdle,
@@ -2720,6 +2848,12 @@ function animate(){
   updateModoAniversario(t);
   renderer.render(scene, camera);
 }
+
+/* ── SEÇÃO 16 — Inicialização final ──────────────────────────────────────
+   Desenha o 1º frame de propósito antes do loop começar (senão a tela
+   fica preta por um instante), depois esconde a tela de "carregando a
+   sala" com um fade e liga o animate(). Por fim, o listener de resize
+   mantém a câmera/renderer do tamanho certo se a janela mudar. ───────── */
 
 /* first paint */
 updateCamera(0);
