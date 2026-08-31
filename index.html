@@ -1712,6 +1712,11 @@ var ROBOS = [
     tabela:       "execucao",   // <-- FALTA PREENCHER
     colunaData:   "data",   // <-- FALTA PREENCHER
     colunaStatus: "sucesso_diario",   // <-- FALTA PREENCHER
+    /* SÓ este robô escreve 2 linhas por dia (uma de manhã, outra à noite) — colunaRotina
+       diz qual é qual, colunaRotinaSucesso diz se aquela rotina deu certo (true/false).
+       Usado só quando um dia é escolhido no calendário — ver buscarStatusPushRemuneradoNoDia. */
+    colunaRotina:        "rotina",
+    colunaRotinaSucesso: "rotina_sucesso",
     nome:         "Push Remunerado",
     link:         "https://pushremunerados.vercel.app/",
   },
@@ -1927,6 +1932,30 @@ async function buscarColunaDoDia(cfg, coluna, dataISO){
   } catch(e){ console.error("Erro ao buscar " + coluna + ":", e); return null; }
 }
 
+/* caso especial: SÓ o Push Remunerado grava 2 linhas por dia (colunaRotina = "manha" ou
+   "noite"), e essa checagem SÓ é usada quando um dia é escolhido no calendário (não ao
+   vivo). O dia só conta como certo se as DUAS rotinas existirem e as DUAS tiverem dado
+   certo (colunaRotinaSucesso = true); se qualquer uma faltar ou for false, é erro. */
+async function buscarStatusPushRemuneradoNoDia(cfg, dataISO){
+  if (!cfg || !cfg.url || !cfg.anonKey || !cfg.colunaRotina || !cfg.colunaRotinaSucesso) return null;
+  try {
+    var client = window.supabase.createClient(cfg.url, cfg.anonKey);
+    var resp = await client
+      .from(cfg.tabela)
+      .select(cfg.colunaRotina + ',' + cfg.colunaRotinaSucesso)
+      .eq(cfg.colunaData, dataISO);
+    if (resp.error){ console.error("Erro Supabase (rotina):", resp.error); return null; }
+
+    var linhas = resp.data || [];
+    var manha = linhas.find(function(l){ return l[cfg.colunaRotina] === 'manha'; });
+    var noite = linhas.find(function(l){ return l[cfg.colunaRotina] === 'noite'; });
+    var manhaOk = !!(manha && manha[cfg.colunaRotinaSucesso] === true);
+    var noiteOk = !!(noite && noite[cfg.colunaRotinaSucesso] === true);
+
+    return (manhaOk && noiteOk) ? 'ok' : 'erro';
+  } catch(e){ console.error("Erro ao buscar rotina do Push Remunerado:", e); return null; }
+}
+
 /* normaliza a coluna "linhas" (array JSON de representações encontradas) pra sempre virar um
    array de verdade — vem string, já vem parseado pelo supabase-js, vem nulo, o que for.
    Vai mudando dia a dia — pode vir com 0, 1, 2... representações, ou sem linha nenhuma pra hoje. */
@@ -1941,12 +1970,22 @@ function parseRepresentacoes(linhas){
 /* busca e aplica o estado de todos os robôs (+ os números do painel) pro dia `dataISO`.
    `agoraParaModos` é o horário usado só pra decidir errormode/idlemode quando não tem
    dado nenhum naquele dia — ao vivo é o horário real, num dia escolhido é sempre 12:00. */
-async function atualizarEstadoDoPainel(dataISO, agoraParaModos){
+async function atualizarEstadoDoPainel(dataISO, agoraParaModos, diaEscolhido){
   for (var i = 0; i < robots.length; i++){
 
     // VIGENCIA SEMPRE TRABALHANDO - nao tem banco
     if (i === 3) {
       robots[i].mode = "workingmode";
+      continue;
+    }
+
+    // caso especial: só o Push Remunerado (robo3/i===2), só quando um dia é escolhido no
+    // calendário — depende das DUAS rotinas (manhã e noite) daquele dia, não de 1 linha só
+    // (ver buscarStatusPushRemuneradoNoDia, logo acima). Ao vivo continua no caminho normal.
+    if (i === 2 && diaEscolhido && ROBOS[i].colunaRotina){
+      var resultado = await buscarStatusPushRemuneradoNoDia(ROBOS[i], dataISO);
+      robots[i].mode = resultado === 'ok' ? 'workingmode' : 'errormode';
+      robots[i].statusRaw = resultado;
       continue;
     }
 
@@ -1998,7 +2037,7 @@ function irParaDia(dataISO){
   atualizarUIBarraDeDia();
   pararAtualizacaoAoVivo();
   var agoraVirtual = new Date(dataISO + 'T12:00:00'); /* fixo: sempre como se fosse meio-dia daquele dia */
-  atualizarEstadoDoPainel(dataISO, agoraVirtual);
+  atualizarEstadoDoPainel(dataISO, agoraVirtual, true);
 }
 
 dbBtnAoVivo.addEventListener('click', irParaAoVivo);

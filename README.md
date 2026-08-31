@@ -111,3 +111,13 @@ aplicado como textura numa parede da sala. Pra adicionar uma métrica nova, ache
   é processada no shader de todo objeto iluminado da cena a cada frame, mesmo com
   `intensity:0`. Se a luz só deve existir às vezes (como as do easter egg), deixe
   `visible:false` por padrão e só ligue `visible:true` quando for realmente usar.
+
+## Caso especial: Push Remunerado (SEÇÃO 9)
+
+Só a tabela do Push Remunerado (`execucao`) grava **2 linhas por dia** — uma de manhã, outra
+à noite, diferenciadas pela coluna `rotina` (`"manha"`/`"noite"`), cada uma com sua própria
+`rotina_sucesso` (true/false). **Só quando um dia é escolhido no calendário** (não ao vivo),
+`atualizarEstadoDoPainel` desvia esse robô pra `buscarStatusPushRemuneradoNoDia`, que busca
+as duas rotinas daquele dia e decide: as duas existem e as duas com `rotina_sucesso = true`
+→ `workingmode`; se qualquer uma faltar ou vier `false` → `errormode`. Ao vivo, esse robô
+continua no caminho normal (`buscarStatus`, 1 linha esperada) sem essa checagem dupla.
