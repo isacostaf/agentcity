@@ -128,6 +128,54 @@
   }
   #birthdayBanner.show { opacity:1; transform:translateX(-50%) scale(1); }
   @keyframes bdayShift { to { background-position:300% 0; } }
+
+  /* "LER REPRESENTAÇÕES" button — pinned to the dashboard's own row 0 in 3D, reprojected
+     to screen space every frame (see updateLerRepresentacoesBtn), same trick as #holoTooltip. */
+  #btnLerRepresentacoes {
+    position:absolute; top:0; left:0; z-index:6; transform:translate(0,-50%);
+    display:none; align-items:center; gap:6px; cursor:pointer;
+    background:rgba(140,220,255,0.12); border:1px solid rgba(140,220,255,0.45); border-radius:14px;
+    padding:4px 10px; font-family:monospace; font-size:9px; font-weight:bold; letter-spacing:0.5px;
+    color:#eaf6ff; text-transform:uppercase; white-space:nowrap;
+    box-shadow:0 0 10px rgba(140,220,255,0.15); transition:background .15s, box-shadow .15s;
+  }
+  #btnLerRepresentacoes:hover { background:rgba(140,220,255,0.24); box-shadow:0 0 16px rgba(140,220,255,0.35); }
+  #btnLerRepresentacoes.visible { display:flex; }
+
+  /* modal: same glass/HUD frame language as #holoTooltip, listing the day's documents */
+  #repModal {
+    position:absolute; inset:0; z-index:9; display:none;
+    align-items:flex-start; justify-content:center; padding-top:12vh;
+    background:rgba(3,5,10,0.55); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+  }
+  #repModal.show { display:flex; }
+  #repModal .rmFrame {
+    width:min(560px, 88vw); max-height:70vh; display:flex; flex-direction:column;
+    background:rgba(8,14,24,0.92); border:1px solid rgba(140,220,255,0.35); border-radius:14px;
+    box-shadow:0 12px 50px rgba(0,0,0,0.55), 0 0 30px rgba(89,214,255,0.12);
+    font-family:monospace; color:#eaf6ff;
+  }
+  #repModal .rmHead {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid rgba(140,220,255,0.2);
+  }
+  #repModal .rmTitle { font-size:13px; font-weight:bold; letter-spacing:1.5px; color:#8fe3ff; }
+  #repModal .rmClose {
+    all:unset; cursor:pointer; color:rgba(200,230,255,0.7); font-size:16px; line-height:1;
+    padding:4px 8px; border-radius:8px;
+  }
+  #repModal .rmClose:hover { background:rgba(140,220,255,0.15); color:#fff; }
+  #repModal .rmBody { overflow-y:auto; padding:8px 10px; }
+  #repModal .rmEmpty { padding:24px 18px; text-align:center; color:rgba(200,230,255,0.55); font-size:12px; letter-spacing:0.5px; }
+  #repModal .rmRow {
+    display:block; padding:11px 12px; margin:4px 0; border-radius:9px;
+    border:1px solid rgba(140,220,255,0.14); background:rgba(140,220,255,0.04);
+    color:#dff4ff; text-decoration:none; transition:background .15s, border-color .15s;
+  }
+  #repModal a.rmRow:hover { background:rgba(140,220,255,0.12); border-color:rgba(140,220,255,0.4); }
+  #repModal .rmRowTitle { font-size:12.5px; line-height:1.4; }
+  #repModal a.rmRow .rmRowTitle { color:#8fe3ff; text-decoration:underline; text-underline-offset:2px; }
+  #repModal .rmRowMeta { margin-top:4px; font-size:10px; letter-spacing:0.5px; color:rgba(200,230,255,0.55); }
 </style>
 </head>
 <body>
@@ -143,6 +191,18 @@
     <input type="date" id="dbDayInput">
   </div>
   <div id="birthdayBanner">🎉 FELIZ ANIVERSÁRIO!!! 🎉</div>
+
+  <button id="btnLerRepresentacoes">▸ Ler representações</button>
+  <div id="repModal">
+    <div class="rmFrame">
+      <div class="rmHead">
+        <span class="rmTitle">REPRESENTAÇÕES — <span id="rmDate"></span></span>
+        <button class="rmClose" id="rmCloseBtn">✕</button>
+      </div>
+      <div class="rmBody" id="rmBody"></div>
+    </div>
+  </div>
+
   <div id="holoTooltip">
     <div class="hpConnDot"></div>
     <div class="hpConnector"></div>
@@ -420,6 +480,11 @@ function drawCornerBrackets(ctx, w, h, glow){
   bracket(w-m, h-m, -1, -1);
 }
 
+/* pixel rect (in dashTex canvas space) of each stat row, filled in by drawDashboard every
+   redraw — used to plant the "LER REPRESENTAÇÕES" HTML button exactly over row 0, projected
+   from the dashboard's 3D plane to screen space each frame (see updateLerRepresentacoesBtn). */
+var dashboardRowRects = [];
+
 /* one row of the dashboard: a rounded, glass-like card with a colored accent bar and a small
    tech "▸" marker on the left, a label, and a glowing Orbitron number a FIXED distance after
    the label ends — however long the label is. Built as its own function so new stats later
@@ -565,8 +630,10 @@ function drawDashboard(ctx, w, h, t){
   ];
 
   var rowH = 64, rowGap = 14, rowY = divY + 22;
-  stats.forEach(function(s){
-    drawStatRow(ctx, padX, rowY, w-padX*2, rowH, s.label, s.value, s.color, t);
+  stats.forEach(function(s, i){
+    var rowW = w-padX*2;
+    drawStatRow(ctx, padX, rowY, rowW, rowH, s.label, s.value, s.color, t);
+    dashboardRowRects[i] = { x:padX, y:rowY, w:rowW, h:rowH };
     rowY += rowH + rowGap;
   });
 }
@@ -1607,6 +1674,7 @@ var robots = [];
 var desks = [];
 var robotClickTargets = []; /* invisible hitboxes, one per robot, used to open its dashboard link on click */
 var representacoesHojeCount = 0; /* quantas representações o Radar Colegiados (robo1) achou hoje — mostrado no painel central */
+var representacoesHojeLista = []; /* os itens crus (Documento + PDF) daquele dia — mostrados no modal "ler representações" */
 var pushDiretoraCount = 0; /* valor da coluna push_count do Push Diretora (robo2) hoje — mostrado no painel central */
 var SMOKE_COUNT = 10; /* puff sprites per robot's error-mode monitor smoke plume */
 var SMOKE_LIFE = 2.4;  /* seconds for one puff to rise, grow and fade out */
@@ -1769,14 +1837,15 @@ async function buscarColunaDoDia(cfg, coluna, dataISO){
   } catch(e){ console.error("Erro ao buscar " + coluna + ":", e); return null; }
 }
 
-/* conta quantos itens tem o array JSON de representações encontradas no dia.
+/* normaliza a coluna "linhas" (array JSON de representações encontradas) pra sempre virar um
+   array de verdade — vem string, já vem parseado pelo supabase-js, vem nulo, o que for.
    Vai mudando dia a dia — pode vir com 0, 1, 2... representações, ou sem linha nenhuma pra hoje. */
-function contarRepresentacoes(linhas){
+function parseRepresentacoes(linhas){
   var arr = linhas;
   if (typeof arr === 'string'){
-    try { arr = JSON.parse(arr); } catch(e){ return 0; } // coluna veio como texto em vez de json/jsonb
+    try { arr = JSON.parse(arr); } catch(e){ return []; } // coluna veio como texto em vez de json/jsonb
   }
-  return Array.isArray(arr) ? arr.length : 0;
+  return Array.isArray(arr) ? arr : [];
 }
 
 /* busca e aplica o estado de todos os robôs (+ os números do painel) pro dia `dataISO`.
@@ -1797,7 +1866,8 @@ async function atualizarEstadoDoPainel(dataISO, agoraParaModos){
   }
 
   var linhasDoDia = await buscarColunaDoDia(ROBOS[0], ROBOS[0].colunaLinhas, dataISO); // só o Radar Colegiados tem essa coluna
-  representacoesHojeCount = contarRepresentacoes(linhasDoDia);
+  representacoesHojeLista = parseRepresentacoes(linhasDoDia);
+  representacoesHojeCount = representacoesHojeLista.length;
 
   var pushCountDoDia = await buscarColunaDoDia(ROBOS[1], ROBOS[1].colunaPushCount, dataISO); // só o Push Diretora tem essa coluna
   pushDiretoraCount = Number(pushCountDoDia) || 0;
@@ -2029,6 +2099,62 @@ function updateHoloHover(){
   holoTooltipEl.style.top = ((1-(holoBallWorld.y*0.5+0.5)) * rect.height + 60) + 'px';
   holoTooltipEl.classList.add('visible');
 }
+
+/* "LER REPRESENTAÇÕES" button: pinned over the right side of the dashboard's row 0 (Push
+   Representações), reprojected every frame from the dashboard's own 3D plane onto the screen
+   — same trick as the hologram tooltip above, just reading a stat-row rect instead of a ball. */
+var btnLerRepresentacoesEl = document.getElementById('btnLerRepresentacoes');
+var __dashRowWorld = new THREE.Vector3();
+
+function updateLerRepresentacoesBtn(){
+  var rowRect = dashboardRowRects[0];
+  if (!rowRect){ btnLerRepresentacoesEl.classList.remove('visible'); return; }
+
+  var cw = dashTex.canvas.width, ch = dashTex.canvas.height;
+  var pw = windowMesh.geometry.parameters.width, ph = windowMesh.geometry.parameters.height;
+  var px = rowRect.x + rowRect.w - 260; /* reserva de largura pro próprio botão, sem estourar a linha */
+  var py = rowRect.y + rowRect.h/2;
+  var localX = (px/cw - 0.5) * pw;
+  var localY = (0.5 - py/ch) * ph;
+  __dashRowWorld.set(windowMesh.position.x + localX, windowMesh.position.y + localY, windowMesh.position.z);
+  __dashRowWorld.project(camera);
+
+  var rect = canvas.getBoundingClientRect();
+  btnLerRepresentacoesEl.style.left = ((__dashRowWorld.x*0.5+0.5) * rect.width) + 'px';
+  btnLerRepresentacoesEl.style.top  = ((1-(__dashRowWorld.y*0.5+0.5)) * rect.height) + 'px';
+  btnLerRepresentacoesEl.classList.add('visible');
+}
+
+/* modal listando as representações do dia (Documento + link do PDF, clicável) */
+var repModalEl = document.getElementById('repModal');
+var rmBodyEl = document.getElementById('rmBody');
+var rmDateEl = document.getElementById('rmDate');
+
+function abrirModalRepresentacoes(){
+  rmDateEl.textContent = dbDayInput.value || hojeISO();
+
+  if (!representacoesHojeLista.length){
+    rmBodyEl.innerHTML = '<div class="rmEmpty">NENHUMA REPRESENTAÇÃO ENCONTRADA NESSE DIA</div>';
+  } else {
+    rmBodyEl.innerHTML = representacoesHojeLista.map(function(item){
+      var nome = (item && item.Documento) ? String(item.Documento) : '(sem nome)';
+      var link = item && item.PDF;
+      if (link){
+        return '<a class="rmRow" href="' + link.replace(/"/g,'&quot;') + '" target="_blank" rel="noopener">' +
+          '<div class="rmRowTitle">' + nome.replace(/</g,'&lt;') + '</div>' +
+          '<div class="rmRowMeta">' + link.replace(/</g,'&lt;') + '</div></a>';
+      }
+      return '<div class="rmRow"><div class="rmRowTitle">' + nome.replace(/</g,'&lt;') + '</div>' +
+        '<div class="rmRowMeta">sem link</div></div>';
+    }).join('');
+  }
+
+  repModalEl.classList.add('show');
+}
+
+btnLerRepresentacoesEl.addEventListener('click', abrirModalRepresentacoes);
+document.getElementById('rmCloseBtn').addEventListener('click', function(){ repModalEl.classList.remove('show'); });
+repModalEl.addEventListener('click', function(e){ if (e.target === repModalEl) repModalEl.classList.remove('show'); });
 
 /* click a robot -> open its dashboard link in a new tab.
    Reuses the same mouse-NDC tracking as the hologram hover above. Cursor turns
@@ -2590,6 +2716,7 @@ function animate(){
   updateCamera(t);
   updateHoloHover();
   updateRobotHoverCursor();
+  updateLerRepresentacoesBtn();
   updateModoAniversario(t);
   renderer.render(scene, camera);
 }
