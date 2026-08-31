@@ -515,8 +515,11 @@ function drawDashboard(ctx, w, h, t){
      becomes its own row automatically, stacked top to bottom. */
   var repN = representacoesHojeCount;
   var repColor = repN > 0 ? '#ff8a3d' : '#28f0c0'; /* amber when there's something to look at, teal when zero */
+  var pushN = pushDiretoraCount;
+  var pushColor = pushN > 0 ? '#ff8a3d' : '#28f0c0';
   var stats = [
-    { label:'push representações encontrou:', value:repN, color:repColor }
+    { label:'push representações encontrou:', value:repN,  color:repColor },
+    { label:'push diretora encontrou:',       value:pushN, color:pushColor }
   ];
 
   var rowH = 64, rowGap = 14, rowY = divY + 22;
@@ -1491,6 +1494,7 @@ var ROBOS = [
     tabela:       "execucoes",   // <-- FALTA PREENCHER
     colunaData:   "data",   // <-- FALTA PREENCHER
     colunaStatus: "sucesso_diario",   // <-- FALTA PREENCHER
+    colunaPushCount: "push_count",   /* coluna numérica do dia — usada no painel central */
     nome:         "Push Diretora",
     link:         "https://pushdeorg.vercel.app/",
   },
@@ -1545,6 +1549,7 @@ var robots = [];
 var desks = [];
 var robotClickTargets = []; /* invisible hitboxes, one per robot, used to open its dashboard link on click */
 var representacoesHojeCount = 0; /* quantas representações o Radar Colegiados (robo1) achou hoje — mostrado no painel central */
+var pushDiretoraCount = 0; /* valor da coluna push_count do Push Diretora (robo2) hoje — mostrado no painel central */
 var SMOKE_COUNT = 10; /* puff sprites per robot's error-mode monitor smoke plume */
 var SMOKE_LIFE = 2.4;  /* seconds for one puff to rise, grow and fade out */
 
@@ -1690,22 +1695,24 @@ async function buscarStatus(cfg){
   } catch(e){ console.error("Erro ao buscar status:", e); return null; }
 }
 
-/* busca a coluna "linhas" do dia (array JSON de representações encontradas) e conta quantas tem.
-   Vai mudando dia a dia — pode vir com 0, 1, 2... representações, ou sem linha nenhuma pra hoje. */
-async function buscarLinhas(cfg){
-  if (!cfg || !cfg.url || !cfg.anonKey || !cfg.colunaLinhas) return null; // ligação incompleta ou robô sem essa coluna: pula sem dar erro
+/* busca uma coluna qualquer do dia (linha de hoje, filtrando por colunaData) — genérica,
+   usada tanto pra "linhas" (array JSON) quanto pra "push_count" (número) e outras que vierem depois. */
+async function buscarColunaHoje(cfg, coluna){
+  if (!cfg || !cfg.url || !cfg.anonKey || !coluna) return null; // ligação incompleta ou robô sem essa coluna: pula sem dar erro
   try {
     var client = window.supabase.createClient(cfg.url, cfg.anonKey);
     var resp = await client
       .from(cfg.tabela)
-      .select(cfg.colunaLinhas)
+      .select(coluna)
       .eq(cfg.colunaData, hojeISO())
       .maybeSingle();
-    if (resp.error){ console.error("Erro Supabase (linhas):", resp.error); return null; }
-    return resp.data ? resp.data[cfg.colunaLinhas] : null;
-  } catch(e){ console.error("Erro ao buscar linhas:", e); return null; }
+    if (resp.error){ console.error("Erro Supabase (" + coluna + "):", resp.error); return null; }
+    return resp.data ? resp.data[coluna] : null;
+  } catch(e){ console.error("Erro ao buscar " + coluna + ":", e); return null; }
 }
 
+/* conta quantos itens tem o array JSON de representações encontradas no dia.
+   Vai mudando dia a dia — pode vir com 0, 1, 2... representações, ou sem linha nenhuma pra hoje. */
 function contarRepresentacoes(linhas){
   var arr = linhas;
   if (typeof arr === 'string'){
@@ -1730,8 +1737,11 @@ async function atualizarModosDosRobos(){
     robots[i].statusRaw = status; // guarda exatamente o que veio de colunaStatus
   }
 
-  var linhasHoje = await buscarLinhas(ROBOS[0]); // só o Radar Colegiados tem essa coluna
+  var linhasHoje = await buscarColunaHoje(ROBOS[0], ROBOS[0].colunaLinhas); // só o Radar Colegiados tem essa coluna
   representacoesHojeCount = contarRepresentacoes(linhasHoje);
+
+  var pushCountHoje = await buscarColunaHoje(ROBOS[1], ROBOS[1].colunaPushCount); // só o Push Diretora tem essa coluna
+  pushDiretoraCount = Number(pushCountHoje) || 0;
 }
 
 atualizarModosDosRobos();
